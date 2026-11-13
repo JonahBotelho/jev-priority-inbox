@@ -1,5 +1,7 @@
 // All text presented by the application and command-line tools.
+import { mail } from './mail.js';
 export const en = {
+  mail,
   title: 'Jev Priority Inbox', brand: 'Jev', brandSubtitle: 'Priority Inbox', inbox: 'Inbox', subtitle: 'Make room for what needs you.',
   password: 'Mailbox password', signIn: 'Open inbox', signOut: 'Sign out',
   open: 'Open email', next: 'Next email', back: 'Back to inbox', handled: 'Mark handled',
@@ -15,6 +17,7 @@ export const en = {
   forbidden: 'This request is not allowed.', missing: 'Message unavailable.', invalid: 'Invalid request.',
   unavailable: 'The service is temporarily unavailable.', demoOnly: 'Demo delivery is available in demo mode.',
   delivered: 'Demo email accepted', fixtureHelp: 'Choose outage, recovery, signoff, sale, security, database, deployment, certificate, or digest. Optional second argument is a delivery ID.',
+  seeded: 'Demo samples ready: three Emergency, three Urgent, and three Routine emails. Existing samples are preserved.',
   comparisonKey: 'Set JEV_API_KEY and GEMINI_API_KEY to run the comparison.',
   comparisonFailed: 'Decision failed', listening: 'Inbox server listening on port',
   fictionalSender: 'Fictional study sender',

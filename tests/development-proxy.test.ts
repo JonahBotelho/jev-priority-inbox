@@ -1,8 +1,7 @@
-// Sign-in must work through Vite while requests from foreign origins remain rejected.
+// One Express listener serves the built frontend and same-origin API in development.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import { createServer, type ProxyOptions } from 'vite';
 import viteConfig from '../vite.config.js';
 import { Config } from '../src/server/config.js';
 import { Database } from '../src/server/infrastructure/Database.js';
@@ -11,21 +10,18 @@ import { Application } from '../src/server/http/Application.js';
 import { DemoMailbox } from '../src/server/adapters/Providers.js';
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 
-test('development proxy accepts same-origin sign-in and forwards its session cookie', async () => {
+test('single development listener serves the frontend and authenticated API', async () => {
   const config = new Config();
   const database = new Database(':memory:');
   const api = new Application(config, new InboxRepository(database), new DemoMailbox(), new ChangeEvents()).app.listen(0);
   await new Promise<void>(resolve => api.once('listening', resolve));
-  const proxy = viteConfig.server!.proxy!['/v1'] as ProxyOptions;
-  const vite = await createServer({
-    configFile: false,
-    server: { host: '127.0.0.1', port: 0, proxy: {
-      '/v1': { ...proxy, target: `http://127.0.0.1:${(api.address() as AddressInfo).port}` },
-    } },
-  });
+  assert.equal(viteConfig.server!.middlewareMode, true);
+  assert.equal(viteConfig.preview!.port, 8000);
   try {
-    await vite.listen();
-    const origin = `http://127.0.0.1:${(vite.httpServer!.address() as AddressInfo).port}`;
+    const origin = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
+    const frontend = await fetch(origin);
+    assert.equal(frontend.status, 200);
+    assert.match(await frontend.text(), /<div id="root">/);
     const response = await fetch(origin + '/v1/session', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin },
       body: JSON.stringify({ password: config.password }),
@@ -39,7 +35,6 @@ test('development proxy accepts same-origin sign-in and forwards its session coo
     });
     assert.equal(foreign.status, 403);
   } finally {
-    await vite.close();
     api.close();
     api.closeAllConnections();
     database.connection.close();

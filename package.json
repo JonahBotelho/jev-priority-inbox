@@ -7,12 +7,13 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "concurrently -k \"tsx watch src/server/main.ts\" \"vite --host 127.0.0.1\"",
+    "dev": "npm run build && concurrently -k \"tsx watch src/server/main.ts\" \"vite build --watch\"",
     "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/main.js",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "playwright test",
     "demo:deliver": "tsx src/cli/deliver.ts",
+    "demo:seed": "tsx src/cli/seed.ts",
     "compare": "tsx src/cli/compare.ts"
   },
   "dependencies": {
@@ -20,6 +21,12 @@
     "@typesafe-ai/sdk": "0.7.0",
     "dotenv": "^17.0.0",
     "express": "^5.3.0",
+    "google-auth-library": "^11.3.4",
+    "html-to-text": "^10.0.1",
+    "imapflow": "^2.11.0",
+    "ipaddr.js": "^2.5.0",
+    "mailparser": "^3.14.3",
+    "nodemailer": "^10.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.0.0"
@@ -27,7 +34,10 @@
   "devDependencies": {
     "@playwright/test": "^1.65.0",
     "@types/express": "^5.0.0",
+    "@types/html-to-text": "^9.0.4",
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "concurrently": "^9.0.0",

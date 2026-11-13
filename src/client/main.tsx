@@ -7,6 +7,8 @@ import { InboxApi } from './InboxApi.js';
 import { InboxQueue } from './InboxQueue.js';
 import { MessageReader, type OpenedMessage } from './MessageReader.js';
 import './styles.css';
+import { ConnectedReader } from './ConnectedReader.js';
+import { DemoInbox } from './DemoInbox.js';
 
 function Reader() {
   const [signedIn, setSignedIn] = useState(false);
@@ -58,12 +60,6 @@ function Reader() {
       setOpened({ id: card.id, message, tier: card.tier, focus, selection: sequence });
       if (focus) setMobileReader(true);
     });
-  }
-
-  function nextMessage() {
-    const index = cards.findIndex(card => card.id === opened?.id);
-    const next = cards[(index + 1) % cards.length];
-    if (next) openMessage(next);
   }
 
   function backToInbox() {
@@ -124,7 +120,7 @@ function Reader() {
       </div>
       <section className="reader-pane" aria-label={en.reader}>
         {opened ? <MessageReader key={opened.id} opened={opened} busy={busy}
-          canAdvance={cards.some(card => card.id !== opened.id)} onBack={backToInbox} onNext={nextMessage}
+          onBack={backToInbox}
           onHandled={() => void perform(async () => {
             await InboxApi.request('/messages/' + opened.id, 'PATCH', { handled: true });
             // Refresh first so the automatic next selection excludes handled mail.
@@ -145,4 +141,16 @@ function Reader() {
   </>;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><Reader/></React.StrictMode>);
+async function start() {
+  if (window.location.pathname === '/demo') {
+    createRoot(document.getElementById('root')!).render(<React.StrictMode><DemoInbox /></React.StrictMode>);
+    return;
+  }
+  const mode = await InboxApi.request<{ connected: boolean; google?: boolean }>('/mode');
+  createRoot(document.getElementById('root')!).render(<React.StrictMode>
+    {mode.connected ? <ConnectedReader google={Boolean(mode.google)} /> : <Reader/>}
+  </React.StrictMode>);
+}
+void start().catch(() => {
+  createRoot(document.getElementById('root')!).render(<main role="alert">{en.unavailable}</main>);
+});

@@ -12,6 +12,7 @@ import { ChangeEvents } from '../application/ChangeEvents.js';
 import { InboxController } from './InboxController.js';
 import { Sessions } from './Sessions.js';
 import { en } from '../../locales/en.js';
+import { DemoPreview } from './DemoPreview.js';
 
 export class Application {
   readonly app = express();
@@ -45,6 +46,7 @@ export class Application {
       } catch { response.status(400).json({ error: en.invalid }); }
     });
     this.app.use(express.json({ limit: '16kb' }));
+    this.app.get('/v1/mode', (_request, response) => response.json({ connected: false }));
     this.app.use('/v1', (request, response, next) => {
       const origin = request.get('origin');
       if (!['GET', 'HEAD'].includes(request.method) && origin && origin !== `${request.protocol}://${request.get('host')}`) {
@@ -54,6 +56,7 @@ export class Application {
     });
     this.registerSessions();
     this.registerDemo();
+    this.app.use('/v1', new DemoPreview().router);
     this.app.use('/v1', new InboxController(repository, provider, events, this.sessions).router);
     this.app.use('/v1', (_request, response) => { response.status(404).json({ error: en.missing }); });
     this.app.use(express.static(resolve('dist/client')));

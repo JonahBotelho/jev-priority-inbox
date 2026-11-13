@@ -11,6 +11,10 @@ export class Database {
     this.connection = new DatabaseSync(path);
     this.connection.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
     this.migrate();
+    const columns = this.connection.prepare('PRAGMA table_info(messages)').all();
+    if (!columns.some(column => column.name === 'preview')) {
+      this.connection.exec('ALTER TABLE messages ADD COLUMN preview TEXT');
+    }
   }
 
   private migrate(): void {

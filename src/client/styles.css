@@ -1,13 +1,13 @@
 /* Light split inbox with a compact queue and an editorial reading pane. */
 :root {
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: Arial, sans-serif;
   color: #202733;
   background: #fff;
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button {
   cursor: pointer;
   border: 1px solid transparent;
@@ -36,20 +36,20 @@ header {
 .brand {
   color: #2459c4;
   text-decoration: none;
-  font-family: Georgia, serif;
+  font-family: Arial, sans-serif;
   font-size: 38px;
   font-weight: bold;
   letter-spacing: -1.5px;
 }
 .brand span {
-  font: 14px 'Segoe UI', sans-serif;
+  font: 14px Arial, sans-serif;
   color: #697181;
   letter-spacing: 0;
   margin-left: 12px;
 }
 main { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
 h1, h2 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, sans-serif;
   font-weight: 400;
   letter-spacing: -.035em;
 }
@@ -68,16 +68,7 @@ h2 { font-size: 36px; line-height: 1.2; }
   min-width: 0;
 }
 .inbox-pane { position: sticky; top: 80px; }
-.inbox-heading {
-  padding: 28px 28px 30px;
-  min-height: 108px;
-}
-.inbox-heading h1 {
-  font-size: 30px;
-  font-weight: 600;
-  margin: 0;
-}
-.inbox-queue { max-height: calc(100dvh - 188px); overflow-y: auto; }
+.inbox-queue { max-height: calc(100dvh - 80px); overflow-y: auto; }
 .queue-item {
   display: block;
   width: 100%;
@@ -97,7 +88,7 @@ h2 { font-size: 36px; line-height: 1.2; }
 .queue-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .queue-item strong {
   display: block;
-  font-family: Georgia, serif;
+  font-family: Arial, sans-serif;
   font-weight: 600;
   font-size: 20px;
   line-height: 1.4;
@@ -108,6 +99,18 @@ h2 { font-size: 36px; line-height: 1.2; }
   margin-top: 12px;
 }
 time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
+.message-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+  color: #697181;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
 .tier {
   display: inline-block;
   font-size: 12px;
@@ -135,13 +138,13 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
 }
 .secondary { color: #566176; border-color: #cbd5e3; background: white; }
 .text-button { color: #2459c4; background: transparent; border: 0; padding: 8px 0; font-size: 14px; }
-.next-button { display: flex; align-items: center; gap: 16px; }
+.demo-reader-toolbar { display: none; }
 .reader-content { padding: 36px clamp(28px, 4vw, 64px) 80px; max-width: 1120px; }
 .reader-content h2 { font-size: clamp(36px, 3.6vw, 54px); margin: 28px 0 20px; overflow-wrap: anywhere; }
 .metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; line-height: 1.6; }
 .sender { overflow-wrap: anywhere; }
 .message-body {
-  font-family: Georgia, serif;
+  font-family: Arial, sans-serif;
   font-size: 21px;
   line-height: 1.8;
   white-space: pre-wrap;
@@ -188,7 +191,6 @@ input, select {
   .workspace { display: block; min-height: calc(100dvh - 64px); }
   .queue-container { border-right: 0; }
   .inbox-pane { position: static; }
-  .inbox-heading { min-height: auto; padding: 28px 24px; }
   .inbox-queue { max-height: none; }
   .queue-item { padding: 22px 24px; }
   .reader-pane { display: none; }
@@ -198,7 +200,7 @@ input, select {
   .mobile-empty { display: block; padding: 24px; color: #697181; line-height: 1.7; }
   .reader-toolbar {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     top: 64px;
     min-height: auto;
     gap: 8px;
@@ -206,10 +208,36 @@ input, select {
   }
   .reader-toolbar button { font-size: 12px; padding: 10px 8px; }
   .reader-toolbar .mobile-back { grid-column: 1 / -1; padding-left: 0; }
-  .reader-toolbar .next-button { justify-content: center; gap: 6px; }
+  .demo-reader-toolbar { display: block; }
   .reader-content { padding: 28px 24px 64px; }
   .reader-content h2 { font-size: 36px; }
   .message-body { font-size: 20px; margin-top: 32px; }
   .correction-form { padding: 20px 24px; }
   .inbox-feedback > * { padding: 12px 20px; }
+}
+
+/* Connected mailbox forms and responsive reading workspace. */
+.mail-actions, .mail-tabs { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.mail-tabs, .mail-sync { margin: 1rem 2rem; }
+.mail-workspace { display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 1.5rem; margin: 1rem 2rem; }
+.mail-workspace .message, .compose-pane { min-width: 0; padding: 1.5rem; }
+.compose-pane form, .login form { display: grid; gap: .8rem; }
+.compose-pane label, .login label { display: grid; gap: .3rem; }
+.compose-pane input, .compose-pane textarea, .login input, .login select { width: 100%; box-sizing: border-box; padding: .65rem; font: inherit; }
+.compose-pane textarea { resize: vertical; }
+.login .checkbox-label { display: flex; align-items: center; }
+.login .checkbox-label input { width: auto; }
+.google-connect { display: inline-block; margin-bottom: 1rem; }
+.mail-workspace .queue-item { width: 100%; }
+@media (max-width: 720px) {
+  .mail-workspace { display: flex; flex-direction: column; margin: 1rem; }
+  .mail-tabs, .mail-sync { margin: 1rem; }
+  .mail-workspace .inbox-pane { max-height: 35vh; overflow: auto; }
+}
+.mail-workspace { max-width: none; padding: 0; }
+body:has(.mail-tabs) header { height: auto; min-height: 80px; flex-wrap: wrap; gap: .8rem; position: static; }
+body:has(.mail-tabs) header h1 { font-size: 28px; margin: 0; }
+@media (max-width: 720px) {
+  body:has(.mail-tabs) header { padding: 16px; }
+  .compose-pane, .mail-workspace .message { padding: .5rem; }
 }

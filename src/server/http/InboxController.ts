@@ -18,7 +18,18 @@ export class InboxController {
       response.setHeader('Cache-Control', 'no-store');
       next();
     });
-    this.router.get('/priority', (_request, response) => response.json(repository.snapshot(response.locals.mailbox)));
+    this.router.get('/priority', async (_request, response) => {
+      const mailbox = response.locals.mailbox;
+      // Fill previews for older records without reclassifying or changing handled state.
+      const missing = repository.snapshot(mailbox).cards.filter(card => card.preview == null).slice(0, 50);
+      await Promise.allSettled(missing.map(async card => {
+        const job = repository.find(mailbox, card.id);
+        if (!job) return;
+        const message = await provider.fetch(job.provider_id, AbortSignal.timeout(4000));
+        repository.savePreview(mailbox, card.id, message.text);
+      }));
+      response.json(repository.snapshot(mailbox));
+    });
     this.router.get('/events', (request, response) => {
       response.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' });
       response.flushHeaders();

@@ -26,12 +26,12 @@ export class Worker {
         const subject = this.preparation.clean(original.subject);
         const text = this.preparation.clean(original.text);
         if (!this.preparation.approved(subject, text)) {
-          this.repository.complete(job.id, subject, null, 'Routine', 0);
+          this.repository.complete(job.id, subject, null, 'Routine', 0, original.text);
         } else {
           const probabilities = await this.attempt(signal => this.classifier.classify({ subject, text,
             receivedAt: job.received_at, role: this.config.role, timeZone: this.config.timeZone }, signal));
           const decision = new PriorityPolicy().decide(probabilities);
-          this.repository.complete(job.id, subject, probabilities, decision.tier, decision.score);
+          this.repository.complete(job.id, subject, probabilities, decision.tier, decision.score, original.text);
         }
       } catch (error) {
         const status = (error as { status?: number }).status;

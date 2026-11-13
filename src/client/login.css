@@ -1,0 +1,111 @@
+/* Account chooser based on the approved centered-card login concept. */
+.connection-page {
+  min-height: 100dvh;
+  background: #eef4fd;
+  background: radial-gradient(ellipse at center, #f7faff, #eaf2ff);
+  color: #151b26;
+}
+.connection-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  padding: 30px 48px;
+  color: #172333;
+  text-decoration: none;
+  font: bold 54px Arial, sans-serif;
+  letter-spacing: -2px;
+}
+.connection-brand span {
+  border-left: 1px solid #aebbd0;
+  padding-left: 24px;
+  font: 23px Arial, sans-serif;
+  letter-spacing: -.4px;
+}
+.connection-center {
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 124px);
+  max-width: none;
+  padding: 40px 24px 120px;
+}
+.connection-card {
+  width: min(100%, 740px);
+  padding: 58px 46px 42px;
+  background: white;
+  border: 1px solid #d1dce9;
+  border-radius: 22px;
+  box-shadow: 0 8px 22px #1b355315;
+  text-align: center;
+}
+.connection-card h1 {
+  font-size: clamp(32px, 4.1vw, 54px);
+  font-weight: 600;
+  letter-spacing: -1.8px;
+  margin: 0 0 54px;
+}
+.connection-google, .connection-other {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  min-height: 76px;
+  padding: 18px 24px;
+  border-radius: 13px;
+  font-size: 23px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.connection-google { background: #1550d5; color: white; border: 1px solid #1550d5; }
+.google-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: white;
+  color: #4285f4;
+  font: bold 28px Arial, sans-serif;
+}
+.connection-divider { height: 1px; background: #d8e0ec; margin: 36px 0; }
+.connection-other { color: #1550d5; background: white; border: 1px solid #9ab3f5; position: relative; }
+.connection-other span { position: absolute; right: 24px; font-size: 30px; }
+.connection-demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  min-height: 44px;
+  color: #6b778d;
+  text-decoration: none;
+  font-size: 22px;
+  font-weight: 600;
+}
+.connection-demo:hover { color: #33445f; text-decoration: underline; }
+.connection-demo-hint { color: #6b778d; font-size: 17px; margin: 4px 0 0; }
+.connection-error { font-size: 14px; margin: 18px 0 0; }
+.manual-connection { max-width: 660px; padding: 16px 24px 72px; }
+.manual-connection h1 { font-size: 36px; margin: 24px 0; }
+.manual-connection form, .manual-connection fieldset { display: grid; gap: 16px; }
+.manual-connection form { background: white; padding: 28px; border: 1px solid #d1dce9; border-radius: 16px; }
+.manual-connection input, .manual-connection select { width: 100%; margin: 6px 0 0; }
+.manual-connection fieldset { border: 1px solid #dce3ee; padding: 20px; border-radius: 8px; min-width: 0; }
+.manual-connection legend { padding: 0 8px; color: #566176; font-weight: 600; }
+.manual-connection .checkbox-label { display: flex; gap: 10px; align-items: center; }
+.manual-connection input[type=checkbox] { width: auto; margin: 0; }
+@media (max-width: 600px) {
+  .connection-brand { padding: 24px; gap: 16px; font-size: 40px; }
+  .connection-brand span { padding-left: 16px; font-size: 17px; }
+  .connection-center { padding: 20px 18px 64px; min-height: calc(100dvh - 96px); }
+  .connection-card { padding: 38px 22px 32px; border-radius: 18px; }
+  .connection-card h1 { letter-spacing: -1px; margin-bottom: 36px; }
+  .connection-google, .connection-other { font-size: 16px; min-height: 62px; gap: 12px; padding: 14px 10px; }
+  .connection-other { padding-right: 28px; }
+  .connection-other span { right: 12px; font-size: 24px; }
+  .google-mark { width: 30px; height: 30px; font-size: 22px; }
+  .connection-divider { margin: 26px 0; }
+  .connection-demo { font-size: 18px; margin-top: 24px; }
+  .connection-demo-hint { font-size: 14px; line-height: 1.5; }
+  .manual-connection form { padding: 20px; }
+}

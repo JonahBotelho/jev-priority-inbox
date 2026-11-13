@@ -14,11 +14,16 @@ export class Config {
   readonly resendKey = process.env.RESEND_API_KEY ?? '';
   readonly webhookSecret = process.env.RESEND_WEBHOOK_SECRET ?? '';
   readonly jevKey = process.env.JEV_API_KEY ?? '';
+  readonly encryptionKey = process.env.MAIL_ENCRYPTION_KEY ?? '';
+  readonly googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
+  readonly googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? '';
+  readonly publicUrl = process.env.PUBLIC_URL ?? `http://localhost:${this.port}`;
 
   constructor() {
     const liveMissing = this.mode === 'live' && (!this.resendKey || !this.webhookSecret || !this.jevKey);
-    if (!['demo', 'live'].includes(this.mode) || !Number.isInteger(this.port) || this.port < 1 || this.port > 65535
-      || !this.password || this.secret.length < 32 || !this.mailbox.includes('@') || liveMissing
+    if (!['demo', 'live', 'connected'].includes(this.mode) || !Number.isInteger(this.port) || this.port < 1 || this.port > 65535
+      || (this.mode !== 'connected' && !this.password) || this.secret.length < 32 || !this.mailbox.includes('@') || liveMissing
+      || (this.mode === 'connected' && !/^[a-fA-F0-9]{64}$/.test(this.encryptionKey))
       || (this.mode === 'live' && (this.password === 'classroom-demo' || this.secret.startsWith('replace-')))) {
       throw new Error(en.config);
     }

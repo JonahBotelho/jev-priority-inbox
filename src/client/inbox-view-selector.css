@@ -1,0 +1,38 @@
+/* Compact view navigation stays within the width of the message panel. */
+.inbox-view-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 5px;
+  margin: 16px;
+  border: 1px solid #e2e6ed;
+  border-radius: 13px;
+  background: #f0f2f5;
+}
+.inbox-view-selector button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #697181;
+  font-size: 14px;
+  font-weight: 600;
+}
+.inbox-view-selector button[aria-pressed=true] {
+  background: white;
+  color: #2459c4;
+  border-color: #e1e5ec;
+  box-shadow: 0 2px 5px #1c2e481a;
+}
+.inbox-view-selector button:hover:not(:disabled) {
+  color: #2459c4;
+  filter: none;
+}
+.inbox-pane:has(.inbox-view-selector) .inbox-queue {
+  max-height: calc(100dvh - 160px);
+}
+@media (max-width: 760px) {
+  .inbox-pane:has(.inbox-view-selector) .inbox-queue { max-height: none; }
+}

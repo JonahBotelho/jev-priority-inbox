@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Card, Probabilities, Snapshot, Tier } from '../../shared/types.js';
 import { Database } from './Database.js';
+import { MessagePreview } from '../application/MessagePreview.js';
 
 export interface Job { id: string; mailbox: string; provider_id: string; received_at: string; attempts: number }
 
@@ -30,10 +31,11 @@ export class InboxRepository {
     });
   }
 
-  complete(id: string, subject: string, probabilities: Probabilities | null, tier: Tier, score: number): void {
+  complete(id: string, subject: string, probabilities: Probabilities | null, tier: Tier, score: number, text?: string): void {
     this.database.transaction(() => {
-      this.database.connection.prepare(`UPDATE messages SET subject=?, probabilities=?, tier=?, score=?, status='complete' WHERE id=?`)
-        .run(subject, probabilities ? JSON.stringify(probabilities) : null, tier, score, id);
+      this.database.connection.prepare(`UPDATE messages SET subject=?, probabilities=?, tier=?, score=?, preview=?, status='complete' WHERE id=?`)
+        .run(subject, probabilities ? JSON.stringify(probabilities) : null, tier, score,
+          text === undefined ? null : MessagePreview.from(text), id);
     });
   }
 
@@ -44,7 +46,7 @@ export class InboxRepository {
   }
 
   snapshot(mailbox: string): Snapshot {
-    const cards = this.database.connection.prepare(`SELECT id, COALESCE(corrected_tier,tier) AS tier, subject,
+    const cards = this.database.connection.prepare(`SELECT id, COALESCE(corrected_tier,tier) AS tier, subject, preview,
       received_at AS receivedAt FROM messages WHERE mailbox=? AND status='complete' AND handled=0
       AND COALESCE(corrected_tier,tier) IN ('Emergency','Urgent')
       ORDER BY CASE COALESCE(corrected_tier,tier) WHEN 'Emergency' THEN 0 ELSE 1 END,
@@ -66,6 +68,11 @@ export class InboxRepository {
       if (correctedTier) this.database.connection.prepare('UPDATE messages SET corrected_tier=? WHERE mailbox=? AND id=?').run(correctedTier, mailbox, id);
       return true;
     });
+  }
+
+  savePreview(mailbox: string, id: string, text: string): void {
+    this.database.connection.prepare('UPDATE messages SET preview=? WHERE mailbox=? AND id=?')
+      .run(MessagePreview.from(text), mailbox, id);
   }
 
   purge(): void {

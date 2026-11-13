@@ -10,7 +10,7 @@ test('split reader preserves mail, switches without dismissal, and works on mobi
   await page.getByRole('button', { name: en.signIn }).click();
   await expect(page.getByRole('button', { name: en.signOut })).toBeVisible();
   await expect(page.locator('header .brand')).toHaveText(en.brand + en.brandSubtitle);
-  await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: en.inbox, exact: true })).toHaveCount(0);
   const deliver = async (name: string) => {
     const response = await page.request.post('/v1/demo/deliver', { data: { name, deliveryId: randomUUID() } });
     expect(response.status()).toBe(202);
@@ -28,9 +28,9 @@ test('split reader preserves mail, switches without dismissal, and works on mobi
   await expect(page.getByText(en.newEmergency)).toBeVisible();
   await expect(page.locator('.message-body')).toHaveText(en.fixtures.signoff.text);
   await expect(heading).toBeFocused();
-  await page.getByRole('button', { name: en.next }).click();
+  await outage.click();
   await expect(heading).toHaveText(en.fixtures.outage.subject);
-  await expect(page.getByRole('button', { name: en.next })).toBeEnabled();
+  await expect(page.getByRole('button', { name: en.next })).toHaveCount(0);
   await expect(queue.getByRole('button')).toHaveCount(2);
 
   // Enter on a queue row opens the message and transfers focus to its heading.
@@ -38,7 +38,7 @@ test('split reader preserves mail, switches without dismissal, and works on mobi
   await page.keyboard.press('Enter');
   await expect(heading).toHaveText(en.fixtures.signoff.subject);
   await expect(heading).toBeFocused();
-  await page.getByRole('button', { name: en.next }).click();
+  await outage.click();
   await expect(heading).toHaveText(en.fixtures.outage.subject);
   const sidebar = await page.locator('.queue-container').boundingBox();
   const reader = await page.locator('.reader-pane').boundingBox();

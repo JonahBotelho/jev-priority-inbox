@@ -7,11 +7,30 @@ import { Worker } from './application/Worker.js';
 import { DemoMailbox, DemoClassifier, ResendMailbox, JevClassifier } from './adapters/Providers.js';
 import { Application } from './http/Application.js';
 import { en } from '../locales/en.js';
+import { MailStore } from './mail/MailStore.js';
+import { MailService } from './mail/MailService.js';
+import { ConnectedApplication } from './mail/ConnectedApplication.js';
 
 class Server {
   static start(): void {
     const config = new Config();
     const database = new Database(config.databasePath);
+    if (config.mode === 'connected') {
+      const store = new MailStore(database, config.encryptionKey);
+      const service = new MailService(store, config, new ChangeEvents());
+      const server = new ConnectedApplication(config, store, service).app.listen(config.port, () => console.log(en.listening, config.port));
+      let syncing = false;
+      const sync = async () => {
+        if (syncing) return;
+        syncing = true;
+        try { await service.tick(); } finally { syncing = false; }
+      };
+      void sync();
+      const timer = setInterval(() => { void sync().catch(() => console.error(en.unavailable)); }, 60000);
+      const shutdown = () => { clearInterval(timer); server.close(); server.closeAllConnections(); };
+      process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);
+      return;
+    }
     const repository = new InboxRepository(database);
     const events = new ChangeEvents();
     const provider = config.mode === 'demo' ? new DemoMailbox() : new ResendMailbox(config.resendKey);

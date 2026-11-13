@@ -8,14 +8,12 @@ export interface OpenedMessage { id: string; message: Message; tier: Tier; focus
 interface Props {
   opened: OpenedMessage;
   busy: boolean;
-  canAdvance: boolean;
   onBack: () => void;
-  onNext: () => void;
   onHandled: () => void;
   onCorrect: (tier: Tier) => Promise<boolean>;
 }
 
-export function MessageReader({ opened, busy, canAdvance, onBack, onNext, onHandled, onCorrect }: Props) {
+export function MessageReader({ opened, busy, onBack, onHandled, onCorrect }: Props) {
   const [editing, setEditing] = useState(false);
   const [correction, setCorrection] = useState<Tier>(opened.tier);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -35,7 +33,6 @@ export function MessageReader({ opened, busy, canAdvance, onBack, onNext, onHand
       <button className="text-button mobile-back" onClick={onBack}>← {en.back}</button>
       <button disabled={busy} onClick={onHandled}>{en.handled}</button>
       <button ref={correctionButton} className="secondary" disabled={busy} aria-expanded={editing} onClick={() => setEditing(value => !value)}>{en.correction}</button>
-      <button className="secondary next-button" disabled={busy || !canAdvance} onClick={onNext}>{en.next} <span aria-hidden="true">→</span></button>
     </div>
     {editing && <form className="correction-form" onSubmit={event => {
       event.preventDefault();
