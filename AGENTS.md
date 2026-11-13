@@ -10,6 +10,7 @@
 # Code style guideline
 
 - Prioritize writing human readible code with adequate spacing.
+- Follow common OOP principles and minimize code outside of classes.
 - Add descriptive comments for complex code. Explain non-obvious reasoning, assumptions, and constraints rather than restating the code.
 - Keep classes short and single focused
 - Keep files short, ideally under 300 lines, with clear a clear purpose and description at the top
