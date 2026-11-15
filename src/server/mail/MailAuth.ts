@@ -11,7 +11,7 @@ export class MailAuth {
   readonly router = Router();
   private readonly states = new Map<string, { expires: number; nonce: string }>();
   private readonly attempts = new Map<string, { count: number; expires: number }>();
-  constructor(private readonly store: MailStore, private readonly service: MailService, private readonly config: Config) {
+  constructor(private readonly store: MailStore, service: MailService, config: Config) {
     this.router.get('/connect/google', (request, response) => {
       if (!config.googleClientId || !config.googleClientSecret) { response.status(503).json({ error: en.mail.unavailable }); return; }
       for (const [state, value] of this.states) if (value.expires < Date.now()) this.states.delete(state);

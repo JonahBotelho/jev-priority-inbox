@@ -30,9 +30,3 @@
   color: #2459c4;
   filter: none;
 }
-.inbox-pane:has(.inbox-view-selector) .inbox-queue {
-  max-height: calc(100dvh - 160px);
-}
-@media (max-width: 760px) {
-  .inbox-pane:has(.inbox-view-selector) .inbox-queue { max-height: none; }
-}

@@ -1,46 +1,43 @@
-// One Express listener serves the built frontend and same-origin API in development.
+// The active account server serves built assets and enforces session and origin boundaries.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import viteConfig from '../vite.config.js';
-import { Config } from '../src/server/config.js';
-import { Database } from '../src/server/infrastructure/Database.js';
-import { InboxRepository } from '../src/server/infrastructure/InboxRepository.js';
-import { Application } from '../src/server/http/Application.js';
-import { DemoMailbox } from '../src/server/adapters/Providers.js';
-import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
+import { MailFixture } from './mail-fixture.js';
 
-process.env.APP_MODE = 'demo';
-process.env.MAILBOX_PASSWORD = 'http-test-password';
-process.env.SESSION_SECRET = 'http-test-secret-at-least-thirty-two-characters';
-
-test('single development listener serves the frontend and authenticated API', async () => {
-  const config = new Config('study');
-  const database = new Database(':memory:');
-  const api = new Application(config, new InboxRepository(database), new DemoMailbox(), new ChangeEvents()).app.listen(0);
-  await new Promise<void>(resolve => api.once('listening', resolve));
-  assert.equal(viteConfig.server!.middlewareMode, true);
-  assert.equal(viteConfig.preview!.port, 8000);
+test('single development listener serves the frontend and account API', async () => {
+  const fixture = new MailFixture();
+  const server = fixture.application.app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port;
+  Object.defineProperty(fixture.config, 'publicUrl', { value: origin });
   try {
-    const origin = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
+    assert.equal(viteConfig.server!.middlewareMode, true);
+    assert.equal(viteConfig.preview!.port, 8000);
     const frontend = await fetch(origin);
     assert.equal(frontend.status, 200);
     assert.match(await frontend.text(), /<div id="root">/);
-    const response = await fetch(origin + '/v1/session', {
+    for (const path of ['/account', '/inbox', '/events', '/messages/missing']) {
+      assert.equal((await fetch(origin + '/v1' + path)).status, 401);
+    }
+    const login = await fetch(origin + '/v1/connect/manual', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin },
-      body: JSON.stringify({ password: config.password }),
+      body: JSON.stringify(MailFixture.settings()),
     });
-    assert.equal(response.status, 204);
-    const cookie = response.headers.get('set-cookie')!.split(';')[0];
-    assert.equal((await fetch(origin + '/v1/priority', { headers: { Cookie: cookie } })).status, 200);
-    const foreign = await fetch(origin + '/v1/session', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://foreign.example' },
-      body: JSON.stringify({ password: config.password }),
+    assert.equal(login.status, 204);
+    const session = login.headers.get('set-cookie')!;
+    assert.match(session, /HttpOnly/);
+    assert.match(session, /SameSite=Lax/);
+    const cookie = session.split(';')[0];
+    assert.equal((await fetch(origin + '/v1/account', { headers: { Cookie: cookie } })).status, 200);
+    assert.equal((await fetch(origin + '/v1/account', { headers: { Cookie: cookie + 'tamper' } })).status, 401);
+    const foreign = await fetch(origin + '/v1/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: 'https://foreign.example' }, body: '{}',
     });
     assert.equal(foreign.status, 403);
+    assert.equal((await fetch(origin + '/v1/session', { method: 'DELETE', headers: { Cookie: cookie } })).status, 204);
+    assert.equal((await fetch(origin + '/v1/account', { headers: { Cookie: cookie } })).status, 401);
   } finally {
-    api.close();
-    api.closeAllConnections();
-    database.connection.close();
+    server.close(); server.closeAllConnections(); fixture.database.connection.close();
   }
 });

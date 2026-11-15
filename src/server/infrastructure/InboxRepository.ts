@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto';
 import type { Card, Probabilities, Snapshot, Tier } from '../../shared/types.js';
 import { Database } from './Database.js';
 import { MessagePreview } from '../application/MessagePreview.js';
+import { StudySchema } from './StudySchema.js';
 
 export interface Job { id: string; mailbox: string; provider_id: string; received_at: string; attempts: number }
 
 export class InboxRepository {
-  constructor(readonly database: Database) {}
+  constructor(readonly database: Database) { StudySchema.migrate(database); }
 
   accept(mailbox: string, providerId: string, receivedAt: string): void {
     this.database.transaction(() => {
@@ -68,11 +69,6 @@ export class InboxRepository {
       if (correctedTier) this.database.connection.prepare('UPDATE messages SET corrected_tier=? WHERE mailbox=? AND id=?').run(correctedTier, mailbox, id);
       return true;
     });
-  }
-
-  savePreview(mailbox: string, id: string, text: string): void {
-    this.database.connection.prepare('UPDATE messages SET preview=? WHERE mailbox=? AND id=?')
-      .run(MessagePreview.from(text), mailbox, id);
   }
 
   purge(): void {

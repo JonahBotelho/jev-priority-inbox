@@ -58,7 +58,6 @@ h2 { font-size: 36px; line-height: 1.2; }
 .workspace {
   display: grid;
   grid-template-columns: clamp(280px, 28vw, 420px) minmax(0, 1fr);
-  min-height: calc(100dvh - 80px);
   max-width: none;
   margin: 0;
   padding: 0;
@@ -67,8 +66,6 @@ h2 { font-size: 36px; line-height: 1.2; }
   border-right: 1px solid #dce3ee;
   min-width: 0;
 }
-.inbox-pane { position: sticky; top: 80px; }
-.inbox-queue { max-height: calc(100dvh - 80px); overflow-y: auto; }
 .queue-item {
   display: block;
   width: 100%;
@@ -138,7 +135,6 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
 }
 .secondary { color: #566176; border-color: #cbd5e3; background: white; }
 .text-button { color: #2459c4; background: transparent; border: 0; padding: 8px 0; font-size: 14px; }
-.demo-reader-toolbar { display: none; }
 .reader-content { padding: 36px clamp(28px, 4vw, 64px) 80px; max-width: 1120px; }
 .reader-content h2 { font-size: clamp(36px, 3.6vw, 54px); margin: 28px 0 20px; overflow-wrap: anywhere; }
 .metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; line-height: 1.6; }
@@ -152,23 +148,10 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
   margin-top: 44px;
   max-width: 68ch;
 }
-.correction-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: end;
-  padding: 20px 36px;
-  background: #f6f9ff;
-  border-bottom: 1px solid #dce3ee;
-}
 .inbox-feedback:empty { display: none; }
 .inbox-feedback > * { margin: 0; padding: 12px 32px; }
-.notice { background: #f0f5ff; border-bottom: 1px solid #dce3ee; line-height: 1.6; font-size: 14px; }
-.notice button { margin-left: 12px; }
-.processing { color: #697181; font-size: 14px; background: #f8faff; }
 .reader-placeholder { padding: 48px; color: #697181; line-height: 1.7; }
-.reader-placeholder h2, .mobile-empty h2 { color: #202733; }
-.mobile-back, .mobile-empty { display: none; }
+.mobile-back { display: none; }
 label { display: block; font-size: 13px; color: #566176; }
 input, select {
   display: block;
@@ -180,24 +163,17 @@ input, select {
   color: #202733;
   max-width: 100%;
 }
-.login { max-width: 580px; padding-top: 100px; }
-.login h1 { margin: 64px 0 40px; }
-.login input { width: 100%; margin-bottom: 24px; }
-.login button { width: 100%; }
 [role=alert] { color: #a52b22; line-height: 1.6; }
 @media (max-width: 760px) {
   header { height: 64px; padding: 10px 20px; }
   .brand { font-size: 32px; }
-  .workspace { display: block; min-height: calc(100dvh - 64px); }
+  .workspace { display: block; }
   .queue-container { border-right: 0; }
-  .inbox-pane { position: static; }
-  .inbox-queue { max-height: none; }
   .queue-item { padding: 22px 24px; }
   .reader-pane { display: none; }
   .reader-open .reader-pane { display: block; }
-  .reader-open .queue-container, .reader-open .mobile-empty { display: none; }
+  .reader-open .queue-container { display: none; }
   .mobile-back { display: block; flex-basis: 100%; text-align: left; }
-  .mobile-empty { display: block; padding: 24px; color: #697181; line-height: 1.7; }
   .reader-toolbar {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -208,36 +184,8 @@ input, select {
   }
   .reader-toolbar button { font-size: 12px; padding: 10px 8px; }
   .reader-toolbar .mobile-back { grid-column: 1 / -1; padding-left: 0; }
-  .demo-reader-toolbar { display: block; }
   .reader-content { padding: 28px 24px 64px; }
   .reader-content h2 { font-size: 36px; }
   .message-body { font-size: 20px; margin-top: 32px; }
-  .correction-form { padding: 20px 24px; }
   .inbox-feedback > * { padding: 12px 20px; }
-}
-
-/* Connected mailbox forms and responsive reading workspace. */
-.mail-actions, .mail-tabs { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
-.mail-tabs, .mail-sync { margin: 1rem 2rem; }
-.mail-workspace { display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 1.5rem; margin: 1rem 2rem; }
-.mail-workspace .message, .compose-pane { min-width: 0; padding: 1.5rem; }
-.compose-pane form, .login form { display: grid; gap: .8rem; }
-.compose-pane label, .login label { display: grid; gap: .3rem; }
-.compose-pane input, .compose-pane textarea, .login input, .login select { width: 100%; box-sizing: border-box; padding: .65rem; font: inherit; }
-.compose-pane textarea { resize: vertical; }
-.login .checkbox-label { display: flex; align-items: center; }
-.login .checkbox-label input { width: auto; }
-.google-connect { display: inline-block; margin-bottom: 1rem; }
-.mail-workspace .queue-item { width: 100%; }
-@media (max-width: 720px) {
-  .mail-workspace { display: flex; flex-direction: column; margin: 1rem; }
-  .mail-tabs, .mail-sync { margin: 1rem; }
-  .mail-workspace .inbox-pane { max-height: 35vh; overflow: auto; }
-}
-.mail-workspace { max-width: none; padding: 0; }
-body:has(.mail-tabs) header { height: auto; min-height: 80px; flex-wrap: wrap; gap: .8rem; position: static; }
-body:has(.mail-tabs) header h1 { font-size: 28px; margin: 0; }
-@media (max-width: 720px) {
-  body:has(.mail-tabs) header { padding: 16px; }
-  .compose-pane, .mail-workspace .message { padding: .5rem; }
 }

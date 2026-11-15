@@ -19,9 +19,7 @@ export class MailFixture {
   submitted?: ComposeInput;
   expired = false;
   constructor(publicUrl = 'http://localhost:8000') {
-    process.env.APP_MODE = 'connected';
     delete process.env.JEV_API_KEY;
-    process.env.SESSION_SECRET = 'test-session-secret-at-least-thirty-two-characters';
     process.env.MAIL_ENCRYPTION_KEY = 'ab'.repeat(32);
     process.env.PUBLIC_URL = publicUrl;
     this.config = new Config();

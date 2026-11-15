@@ -3,33 +3,17 @@ import 'dotenv/config';
 import { en } from '../locales/en.js';
 
 export class Config {
-  readonly mode: string;
   readonly port = Number(process.env.PORT ?? 8000);
-  readonly databasePath: string;
-  readonly mailbox = process.env.MAILBOX_ADDRESS ?? 'team@example.test';
-  readonly password = process.env.MAILBOX_PASSWORD ?? '';
-  readonly secret = process.env.SESSION_SECRET ?? '';
-  readonly role = process.env.RECIPIENT_ROLE ?? 'On-call service owner';
-  readonly timeZone = process.env.RECIPIENT_TIME_ZONE ?? 'America/Vancouver';
-  readonly resendKey = process.env.RESEND_API_KEY ?? '';
-  readonly webhookSecret = process.env.RESEND_WEBHOOK_SECRET ?? '';
-  readonly jevKey = process.env.JEV_API_KEY ?? '';
+  readonly databasePath = process.env.SQLITE_PATH ?? './data/mail.sqlite';
   readonly encryptionKey = process.env.MAIL_ENCRYPTION_KEY ?? '';
   readonly googleClientId = process.env.GOOGLE_CLIENT_ID ?? '';
   readonly googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? '';
   readonly publicUrl = process.env.PUBLIC_URL ?? `http://localhost:${this.port}`;
 
-  constructor(scope: 'site' | 'study' = 'site') {
-    // Legacy study settings must never select a different website or authentication flow.
-    this.mode = scope === 'study' ? process.env.APP_MODE ?? 'demo' : 'connected';
-    this.databasePath = process.env.SQLITE_PATH ?? (scope === 'study' ? './data/inbox.sqlite' : './data/mail.sqlite');
-    const liveMissing = this.mode === 'live' && (!this.resendKey || !this.webhookSecret || !this.jevKey);
-    if (!['demo', 'live', 'connected'].includes(this.mode) || !Number.isInteger(this.port) || this.port < 1 || this.port > 65535
-      || (this.mode !== 'connected' && !this.password) || this.secret.length < 32 || !this.mailbox.includes('@') || liveMissing
-      || (this.mode === 'connected' && !/^[a-fA-F0-9]{64}$/.test(this.encryptionKey))
-      || (this.mode === 'live' && (this.password === 'classroom-demo' || this.secret.startsWith('replace-')))) {
+  constructor() {
+    if (!Number.isInteger(this.port) || this.port < 1 || this.port > 65535
+      || !/^[a-fA-F0-9]{64}$/.test(this.encryptionKey)) {
       throw new Error(en.config);
     }
-    new Intl.DateTimeFormat('en', { timeZone: this.timeZone });
   }
 }

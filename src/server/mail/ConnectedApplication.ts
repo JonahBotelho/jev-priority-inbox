@@ -11,7 +11,7 @@ import { DemoPreview } from '../http/DemoPreview.js';
 
 export class ConnectedApplication {
   readonly app = express();
-  constructor(config: Config, private readonly store: MailStore, private readonly service: MailService) {
+  constructor(config: Config, store: MailStore, service: MailService) {
     const auth = new MailAuth(store, service, config);
     this.app.set('trust proxy', 1);
     this.app.disable('x-powered-by');
@@ -61,7 +61,9 @@ export class ConnectedApplication {
       response.set({ 'Content-Type': 'text/event-stream', 'X-Accel-Buffering': 'no' }); response.flushHeaders();
       const notify = () => { if (!auth.account(request)) response.end(); else response.write('event: change\ndata: {}\n\n'); };
       const unsubscribe = service.events.subscribe(id, notify);
-      const timer = setInterval(notify, 15000); notify();
+      // A keep-alive must not reload the inbox or discard pages the reader loaded.
+      const heartbeat = () => { if (!auth.account(request)) response.end(); else response.write(': heartbeat\n\n'); };
+      const timer = setInterval(heartbeat, 15000); notify();
       response.on('close', () => { clearInterval(timer); unsubscribe(); });
     });
     this.app.get('/v1/messages/:id', async (request, response) => {

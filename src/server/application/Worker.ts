@@ -1,7 +1,7 @@
 // Serial durable worker. Jobs are retried once and decisions are committed before notification.
 import type { Classifier, MailboxProvider } from '../adapters/Providers.js';
 import { ProviderError } from '../adapters/Providers.js';
-import { Config } from '../config.js';
+import type { ClassificationInput } from '../../shared/types.js';
 import { PriorityPolicy } from '../domain/PriorityPolicy.js';
 import { InboxRepository } from '../infrastructure/InboxRepository.js';
 import { ChangeEvents } from './ChangeEvents.js';
@@ -13,7 +13,7 @@ export class Worker {
 
   constructor(private readonly repository: InboxRepository, private readonly mailbox: MailboxProvider,
     private readonly classifier: Classifier, private readonly events: ChangeEvents,
-    private readonly config: Pick<Config, 'role' | 'timeZone'>) {}
+    private readonly config: Pick<ClassificationInput, 'role' | 'timeZone'>) {}
 
   async tick(): Promise<void> {
     if (this.running) return;

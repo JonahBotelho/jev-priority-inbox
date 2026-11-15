@@ -2,9 +2,9 @@
 import { useState } from 'react';
 import type { ComposeInput, MailDetail, SendResult } from '../shared/mail.js';
 import { en } from '../locales/en.js';
-import { InboxApi } from './InboxApi.js';
+import type { Mailbox } from './Mailbox.js';
 
-export function ComposeMail({ reply, onClose }: { reply?: { id: string; message: MailDetail }; onClose: () => void }) {
+export function ComposeMail({ mailbox, reply, onClose }: { mailbox: Mailbox; reply?: { id: string; message: MailDetail }; onClose: () => void }) {
   const [result, setResult] = useState<SendResult>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +20,7 @@ export function ComposeMail({ reply, onClose }: { reply?: { id: string; message:
       const input: ComposeInput = { submissionId, to: value('to'), cc: value('cc'), bcc: value('bcc'),
         subject: value('subject'), text: value('text'), replyToId: reply?.id };
       setBusy(true); setError('');
-      void InboxApi.request<SendResult>('/messages/send', 'POST', input).then(setResult)
+      void mailbox.send(input).then(setResult)
         .catch(cause => setError(cause.message)).finally(() => setBusy(false));
     }}>
       <label>{labels.to}<input name="to" defaultValue={to} /></label>

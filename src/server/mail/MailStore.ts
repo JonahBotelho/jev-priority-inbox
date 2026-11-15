@@ -1,7 +1,7 @@
 // Account-scoped persistence, encrypted credentials, durable synchronization and send receipts.
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 import { Database } from '../infrastructure/Database.js';
-import type { MailCard, MailDetail, SendResult } from '../../shared/mail.js';
+import type { MailCard, SendResult } from '../../shared/mail.js';
 import type { Tier } from '../../shared/types.js';
 import { MessagePreview } from '../application/MessagePreview.js';
 

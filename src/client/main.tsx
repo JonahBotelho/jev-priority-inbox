@@ -3,18 +3,16 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { en } from '../locales/en.js';
 import { InboxApi } from './InboxApi.js';
-import { ConnectedReader } from './ConnectedReader.js';
-import { DemoInbox } from './DemoInbox.js';
+import { MailboxReader } from './MailboxReader.js';
+import { AccountMailbox } from './Mailbox.js';
+import { MockMailbox } from './MockMailbox.js';
 import './styles.css';
 
 async function start() {
-  if (window.location.pathname === '/demo') {
-    createRoot(document.getElementById('root')!).render(<React.StrictMode><DemoInbox /></React.StrictMode>);
-    return;
-  }
   const capabilities = await InboxApi.request<{ google?: boolean }>('/mode');
+  const mailbox = window.location.pathname === '/demo' ? new MockMailbox() : new AccountMailbox();
   createRoot(document.getElementById('root')!).render(<React.StrictMode>
-    <ConnectedReader google={Boolean(capabilities.google)} />
+    <MailboxReader mailbox={mailbox} google={Boolean(capabilities.google)} />
   </React.StrictMode>);
 }
 void start().catch(() => {

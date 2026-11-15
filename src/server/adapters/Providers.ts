@@ -1,6 +1,5 @@
 // External ports and provider adapters, with cancellation on every request.
 import { TypeSafeClient, choice } from '@typesafe-ai/sdk';
-import { Resend } from 'resend';
 import type { ClassificationInput, Message, Probabilities } from '../../shared/types.js';
 import { Fixtures } from './Fixtures.js';
 import { en } from '../../locales/en.js';
@@ -25,19 +24,6 @@ export class DemoClassifier implements Classifier {
   }
 }
 
-export class ResendMailbox implements MailboxProvider {
-  constructor(private readonly key: string) {}
-
-  async fetch(id: string, signal: AbortSignal): Promise<Message> {
-    const response = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(id)}`, {
-      headers: { Authorization: `Bearer ${this.key}` }, signal,
-    });
-    if (!response.ok) throw new ProviderError(response.status === 429 || response.status >= 500);
-    const email = await response.json() as { subject?: string; text?: string; from?: string; created_at?: string };
-    return { subject: email.subject ?? '', text: email.text ?? '', from: email.from ?? '', receivedAt: email.created_at ?? '' };
-  }
-}
-
 export class JevClassifier implements Classifier {
   private readonly client: TypeSafeClient;
 
@@ -56,10 +42,3 @@ export class JevClassifier implements Classifier {
   }
 }
 
-export class WebhookVerifier {
-  private readonly client = new Resend('verification-only');
-
-  verify(body: string, headers: { id: string; timestamp: string; signature: string }, secret: string) {
-    return this.client.webhooks.verify({ payload: body, headers, webhookSecret: secret });
-  }
-}

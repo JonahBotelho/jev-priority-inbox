@@ -8,5 +8,5 @@ export interface MailDetail { subject: string; text: string; from: string; recei
   replyTo?: string; messageId?: string; references?: string[]; threadId?: string }
 export interface ComposeInput { submissionId: string; to: string; cc: string; bcc: string; subject: string;
   text: string; replyToId?: string }
-export interface SendResult { status: 'sending' | 'sent' | 'partial' | 'failed' | 'unknown'; rejected?: string[] }
-export interface MailStatus { id: string; email: string; error: string | null; lastSync: string | null; hasOlder: boolean }
+export interface SendResult { status: 'sending' | 'sent' | 'partial' | 'failed' | 'unknown' | 'simulated'; rejected?: string[] }
+export interface MailStatus { id: string; email: string; error: string | null; lastSync: string | null; hasOlder: boolean; notice?: string }

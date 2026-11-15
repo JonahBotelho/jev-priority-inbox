@@ -7,7 +7,7 @@ test('site startup ignores legacy modes and requires account encryption', () => 
   const settings = ['APP_MODE', 'MAIL_ENCRYPTION_KEY', 'SESSION_SECRET', 'SQLITE_PATH', 'MAILBOX_PASSWORD'];
   const original = new Map(settings.map(name => [name, process.env[name]]));
   try {
-    process.env.SESSION_SECRET = 'test-session-secret-at-least-thirty-two-characters';
+    delete process.env.SESSION_SECRET;
     process.env.MAIL_ENCRYPTION_KEY = 'ab'.repeat(32);
     delete process.env.SQLITE_PATH;
     delete process.env.MAILBOX_PASSWORD;
@@ -15,7 +15,6 @@ test('site startup ignores legacy modes and requires account encryption', () => 
       if (mode === undefined) delete process.env.APP_MODE;
       else process.env.APP_MODE = mode;
       const config = new Config();
-      assert.equal(config.mode, 'connected');
       assert.equal(config.databasePath, './data/mail.sqlite');
     }
     delete process.env.MAIL_ENCRYPTION_KEY;
