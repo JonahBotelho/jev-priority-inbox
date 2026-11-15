@@ -8,7 +8,8 @@ export default defineConfig({
   webServer: {
     command: 'node dist/server/main.js',
     url: 'http://127.0.0.1:3101',
-    env: { APP_MODE: 'demo', PORT: '3101', SQLITE_PATH: ':memory:',
-      MAILBOX_PASSWORD: 'browser-test-password', SESSION_SECRET: 'browser-test-secret-at-least-thirty-two-characters' },
+    // Exercise an old local setting to ensure it cannot restore the classroom login.
+    env: { APP_MODE: 'demo', PORT: '3101', SQLITE_PATH: ':memory:', PUBLIC_URL: 'http://127.0.0.1:3101',
+      MAIL_ENCRYPTION_KEY: 'ab'.repeat(32) },
   },
 });
