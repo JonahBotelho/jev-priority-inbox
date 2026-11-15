@@ -12,8 +12,6 @@
     "start": "node dist/server/main.js",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "playwright test",
-    "demo:deliver": "tsx src/cli/deliver.ts",
-    "demo:seed": "tsx src/cli/seed.ts",
     "compare": "tsx src/cli/compare.ts"
   },
   "dependencies": {

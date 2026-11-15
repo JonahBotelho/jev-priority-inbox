@@ -10,8 +10,12 @@ import { InboxRepository } from '../src/server/infrastructure/InboxRepository.js
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 import { DemoMailbox } from '../src/server/adapters/Providers.js';
 
+process.env.APP_MODE = 'demo';
+process.env.MAILBOX_PASSWORD = 'http-test-password';
+process.env.SESSION_SECRET = 'http-test-secret-at-least-thirty-two-characters';
+
 test('sessions protect reads, streams, ownership, mutations and origin', async () => {
-  const config = new Config();
+  const config = new Config('study');
   const database = new Database(':memory:');
   const repository = new InboxRepository(database);
   const server = new Application(config, repository, new DemoMailbox(), new ChangeEvents()).app.listen(0);
@@ -36,7 +40,7 @@ test('sessions protect reads, streams, ownership, mutations and origin', async (
 
 test('webhooks verify raw signatures, timestamp, recipients and duplicate delivery', async () => {
   const key = Buffer.from('test-signing-secret-for-webhook');
-  const config = Object.assign(new Config(), { mode: 'live', webhookSecret: 'whsec_' + key.toString('base64') });
+  const config = Object.assign(new Config('study'), { mode: 'live', webhookSecret: 'whsec_' + key.toString('base64') });
   const database = new Database(':memory:');
   const repository = new InboxRepository(database);
   const server = new Application(config, repository, new DemoMailbox(), new ChangeEvents()).app.listen(0);

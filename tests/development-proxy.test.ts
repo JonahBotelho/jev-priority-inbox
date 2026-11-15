@@ -10,8 +10,12 @@ import { Application } from '../src/server/http/Application.js';
 import { DemoMailbox } from '../src/server/adapters/Providers.js';
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 
+process.env.APP_MODE = 'demo';
+process.env.MAILBOX_PASSWORD = 'http-test-password';
+process.env.SESSION_SECRET = 'http-test-secret-at-least-thirty-two-characters';
+
 test('single development listener serves the frontend and authenticated API', async () => {
-  const config = new Config();
+  const config = new Config('study');
   const database = new Database(':memory:');
   const api = new Application(config, new InboxRepository(database), new DemoMailbox(), new ChangeEvents()).app.listen(0);
   await new Promise<void>(resolve => api.once('listening', resolve));

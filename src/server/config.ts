@@ -3,9 +3,9 @@ import 'dotenv/config';
 import { en } from '../locales/en.js';
 
 export class Config {
-  readonly mode = process.env.APP_MODE ?? 'demo';
+  readonly mode: string;
   readonly port = Number(process.env.PORT ?? 8000);
-  readonly databasePath = process.env.SQLITE_PATH ?? './data/inbox.sqlite';
+  readonly databasePath: string;
   readonly mailbox = process.env.MAILBOX_ADDRESS ?? 'team@example.test';
   readonly password = process.env.MAILBOX_PASSWORD ?? '';
   readonly secret = process.env.SESSION_SECRET ?? '';
@@ -19,7 +19,10 @@ export class Config {
   readonly googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? '';
   readonly publicUrl = process.env.PUBLIC_URL ?? `http://localhost:${this.port}`;
 
-  constructor() {
+  constructor(scope: 'site' | 'study' = 'site') {
+    // Legacy study settings must never select a different website or authentication flow.
+    this.mode = scope === 'study' ? process.env.APP_MODE ?? 'demo' : 'connected';
+    this.databasePath = process.env.SQLITE_PATH ?? (scope === 'study' ? './data/inbox.sqlite' : './data/mail.sqlite');
     const liveMissing = this.mode === 'live' && (!this.resendKey || !this.webhookSecret || !this.jevKey);
     if (!['demo', 'live', 'connected'].includes(this.mode) || !Number.isInteger(this.port) || this.port < 1 || this.port > 65535
       || (this.mode !== 'connected' && !this.password) || this.secret.length < 32 || !this.mailbox.includes('@') || liveMissing
