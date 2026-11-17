@@ -3,17 +3,21 @@ import { useState } from 'react';
 import type { ComposeInput, MailDetail, SendResult } from '../shared/mail.js';
 import { en } from '../locales/en.js';
 import type { Mailbox } from './Mailbox.js';
+import { ReplyRecipients } from './ReplyRecipients.js';
 
-export function ComposeMail({ mailbox, reply, onClose }: { mailbox: Mailbox; reply?: { id: string; message: MailDetail }; onClose: () => void }) {
+export interface ReplyDraft { id: string; message: MailDetail; all: boolean }
+
+export function ComposeMail({ mailbox, accountEmail, reply, onClose }: {
+  mailbox: Mailbox; accountEmail: string; reply?: ReplyDraft; onClose: () => void;
+}) {
   const [result, setResult] = useState<SendResult>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [submissionId, setSubmissionId] = useState(() => crypto.randomUUID());
   const labels = en.mail;
-  const address = reply?.message.replyTo || reply?.message.from || '';
-  const to = address.match(/[^\s<>@,]+@[^\s<>@,]+\.[^\s<>@,]+/g)?.join(', ') ?? '';
+  const recipients = reply ? ReplyRecipients.for(reply.message, accountEmail, reply.all) : { to: '', cc: '' };
   const subject = reply ? (/^re:/i.test(reply.message.subject) ? reply.message.subject : labels.replyPrefix + reply.message.subject) : '';
-  return <section className="compose-pane" aria-label={labels.compose}><h2>{reply ? labels.reply : labels.compose}</h2>
+  return <section className="compose-pane" aria-label={labels.compose}><h2>{reply ? (reply.all ? labels.replyAll : labels.reply) : labels.compose}</h2>
     <form onSubmit={event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const value = (name: string) => String(form.get(name) ?? '');
@@ -23,8 +27,8 @@ export function ComposeMail({ mailbox, reply, onClose }: { mailbox: Mailbox; rep
       void mailbox.send(input).then(setResult)
         .catch(cause => setError(cause.message)).finally(() => setBusy(false));
     }}>
-      <label>{labels.to}<input name="to" defaultValue={to} /></label>
-      <label>{labels.cc}<input name="cc" /></label><label>{labels.bcc}<input name="bcc" /></label>
+      <label>{labels.to}<input name="to" defaultValue={recipients.to} /></label>
+      <label>{labels.cc}<input name="cc" defaultValue={recipients.cc} /></label><label>{labels.bcc}<input name="bcc" /></label>
       <label>{labels.subject}<input name="subject" defaultValue={subject} readOnly={Boolean(reply)} maxLength={998}/></label>
       <label>{labels.body}<textarea name="text" rows={12} maxLength={100000} required /></label>
       <div className="mail-actions"><button disabled={busy || Boolean(result)}>{busy ? labels.sending : labels.send}</button>

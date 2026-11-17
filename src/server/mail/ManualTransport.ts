@@ -3,7 +3,7 @@ import { lookup } from 'node:dns/promises';
 import ipaddr from 'ipaddr.js';
 import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
-import { simpleParser } from 'mailparser';
+import { simpleParser, type AddressObject, type EmailAddress } from 'mailparser';
 import { convert } from 'html-to-text';
 import type { Account, SyncBatch } from './MailStore.js';
 import { MailStore } from './MailStore.js';
@@ -98,8 +98,15 @@ export class ManualTransport {
     const parsed = await simpleParser(source, { skipHtmlToText: true, skipTextToHtml: true });
     return { subject: parsed.subject ?? '', text: parsed.text || convert(parsed.html || '', { wordwrap: false }),
       from: parsed.from?.text ?? '', receivedAt: (parsed.date ?? new Date()).toISOString(),
+      to: this.addresses(parsed.to), cc: this.addresses(parsed.cc),
       replyTo: parsed.replyTo?.text, messageId: parsed.messageId,
       references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references };
+  }
+
+  private static addresses(header?: AddressObject | AddressObject[]): string[] {
+    const flatten = (addresses: EmailAddress[]): string[] => addresses.flatMap(address =>
+      address.group ? flatten(address.group) : address.address ? [address.address] : []);
+    return (Array.isArray(header) ? header : header ? [header] : []).flatMap(value => flatten(value.value));
   }
 
   async send(account: Account, input: ComposeInput, reply?: MailDetail): Promise<SendResult> {

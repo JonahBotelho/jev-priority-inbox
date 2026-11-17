@@ -6,6 +6,7 @@
 - Do not perform Git actions like Commit, Push, Pull etc. Assume human actions
 - Make small, focused changes, avoiding rewriting too much existing code when possible.
 - Keep all user-facing strings in the `src/locales` folder.
+- Demo and live mail inboxes must share the same frontend source code so they always look and behave the same, and frontend changes affect both; only the email source and whether outgoing emails are actually sent may differ.
 
 # Code style guideline
 

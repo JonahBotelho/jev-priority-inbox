@@ -69,11 +69,14 @@ test('connected inbox and sends work without Jev and isolate identities, receipt
   } finally { server.close(); server.closeAllConnections(); fixture.database.connection.close(); }
 });
 
-test('MIME parser extracts HTML and reply headers, manual destination rejects private IPs', async () => {
-  const message = await ManualTransport.parse(Buffer.from('From: Person <person@example.test>\r\nReply-To: reply@example.test\r\nMessage-ID: <one@example.test>\r\nContent-Type: text/html\r\n\r\n<p>Hello <b>world</b></p>'));
+test('MIME parser extracts HTML and reply recipients, manual destination rejects private IPs', async () => {
+  const message = await ManualTransport.parse(Buffer.from('From: Person <person@example.test>\r\nReply-To: reply@example.test\r\nTo: "Person, One" <one@example.test>, Team: two@example.test, three@example.test;\r\nCc: Copy <copy@example.test>\r\nBcc: hidden@example.test\r\nMessage-ID: <one@example.test>\r\nContent-Type: text/html\r\n\r\n<p>Hello <b>world</b></p>'));
   assert.equal(message.text, 'Hello world');
   assert.equal(message.replyTo, 'reply@example.test');
   assert.equal(message.messageId, '<one@example.test>');
+  assert.deepEqual(message.to, ['one@example.test', 'two@example.test', 'three@example.test']);
+  assert.deepEqual(message.cc, ['copy@example.test']);
+  assert.equal('bcc' in message, false);
   for (const host of ['127.0.0.1', '::1', '169.254.169.254', '10.1.1.1', '::ffff:127.0.0.1']) {
     await assert.rejects(ManualTransport.destination(host));
   }

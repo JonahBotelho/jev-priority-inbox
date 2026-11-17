@@ -15,6 +15,7 @@ interface Props {
   onOpen: (card: MailCard) => void;
   onSync: (older?: boolean) => void;
   onMore: () => void;
+  onCompose: () => void;
 }
 
 export function MailList(props: Props) {
@@ -22,6 +23,7 @@ export function MailList(props: Props) {
   return <aside className="inbox-pane">
     <div className="mail-list-toolbar">
       <h2>{en.inbox}</h2>
+      <button className="mobile-compose" disabled={props.busy} onClick={props.onCompose}>{labels.compose}</button>
       <button className="secondary" disabled={props.busy} onClick={() => props.onSync()}>
         <span aria-hidden="true">↻ </span>{labels.refresh}
       </button>

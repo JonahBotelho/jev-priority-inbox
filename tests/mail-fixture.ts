@@ -32,7 +32,8 @@ export class MailFixture {
       const arriving = { providerId: '2', subject: 'Arrived during import', receivedAt: '2026-11-13T18:01:00Z', preview: 'Please reply.' };
       return { messages: account.checkpoint ? [initial, arriving] : [initial], checkpoint: '2', older: null, activeIds: ['1', '2'] };
     };
-    this.service.read = async () => ({ subject: 'Question', text: 'Please reply.', from: 'Sender <sender@example.test>',
+    this.service.read = async account => ({ subject: 'Question', text: 'Please reply.', from: 'Sender <sender@example.test>',
+      to: [account.email, 'colleague@example.test'], cc: ['copy@example.test', 'COLLEAGUE@example.test'],
       replyTo: 'Reply Person <reply@example.test>', messageId: '<original@example.test>',
       references: ['<earlier@example.test>'], threadId: 'thread-1', receivedAt: '2026-11-13T18:00:00Z' });
     this.service.send = async (_account, input, reply) => {

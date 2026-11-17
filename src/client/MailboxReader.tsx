@@ -5,9 +5,10 @@ import type { Tier } from '../shared/types.js';
 import { en } from '../locales/en.js';
 import type { Mailbox } from './Mailbox.js';
 import { ConnectMailbox } from './ConnectMailbox.js';
-import { ComposeMail } from './ComposeMail.js';
+import { ComposeMail, type ReplyDraft } from './ComposeMail.js';
 import { MailList } from './MailList.js';
 import { MailMessage, type OpenedMail } from './MailMessage.js';
+import { MailToolbar } from './MailToolbar.js';
 import './mailbox.css';
 
 export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: boolean }) {
@@ -19,7 +20,7 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
   const [cards, setCards] = useState<MailCard[]>([]);
   const [more, setMore] = useState(false);
   const [opened, setOpened] = useState<OpenedMail>();
-  const [compose, setCompose] = useState<{ reply?: { id: string; message: OpenedMail['message'] } }>();
+  const [compose, setCompose] = useState<{ reply?: ReplyDraft }>();
   const [mobileReader, setMobileReader] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,6 +74,11 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
     requestAnimationFrame(() => queue.current?.querySelector<HTMLButtonElement>('[aria-current="true"]')?.focus());
   }
 
+  function composeMessage() {
+    setCompose({});
+    setMobileReader(true);
+  }
+
   async function correctPriority(tier: Tier) {
     if (!opened) return;
     await mailbox.update(opened.card.id, { correctedTier: tier });
@@ -88,7 +94,6 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
     <header>
       <a className="brand" href="/" aria-label={en.title}>{en.brand}<span>{en.brandSubtitle}</span></a>
       <div className="mail-account"><span>{account.email}</span><div className="mail-actions">
-        <button disabled={busy} onClick={() => { setCompose({}); setMobileReader(true); }}>{labels.compose}</button>
         <button className="secondary" disabled={busy} onClick={() => void perform(async () => {
           await mailbox.signOut(); window.location.assign('/');
         })}>{labels.signOut}</button>
@@ -104,6 +109,7 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
       <div className="queue-container" ref={queue}>
         <MailList cards={cards} selectedId={opened?.card.id} all={all} busy={busy} more={more}
           hasOlder={account.hasOlder} lastSync={account.lastSync}
+          onCompose={composeMessage}
           onView={value => { setAll(value); setOpened(undefined); setMobileReader(false); }}
           onOpen={card => { void openMessage(card); }}
           onSync={older => void perform(async () => { await mailbox.sync(older); await refresh(); })}
@@ -113,16 +119,19 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
           })} />
       </div>
       <section className="reader-pane" aria-label={en.reader}>
-        {compose ? <><button className="text-button mobile-back compose-back" onClick={backToInbox}>← {en.back}</button>
-          <ComposeMail mailbox={mailbox} key={compose.reply?.id ?? 'new'} reply={compose.reply}
-            onClose={() => { setCompose(undefined); if (!opened) setMobileReader(false); }} /></>
-          : opened ? <MailMessage opened={opened} busy={busy} onBack={backToInbox}
-            onReply={() => setCompose({ reply: { id: opened.card.id, message: opened.message } })}
-            onHandled={() => void perform(async () => {
+        <MailToolbar busy={busy} composing={Boolean(compose)} onBack={backToInbox} onCompose={composeMessage}
+          message={!compose && opened ? {
+            tier: opened.card.tier,
+            onReply: all => setCompose({ reply: { id: opened.card.id, message: opened.message, all } }),
+            onHandled: () => void perform(async () => {
               await mailbox.update(opened.card.id, { handled: true }); await refresh();
               setOpened(undefined); setMobileReader(false);
-            })}
-            onPriority={tier => void perform(() => correctPriority(tier))} />
+            }),
+            onPriority: tier => void perform(() => correctPriority(tier)),
+          } : undefined} />
+        {compose ? <ComposeMail mailbox={mailbox} accountEmail={account.email} key={compose.reply?.id ?? 'new'} reply={compose.reply}
+          onClose={() => { setCompose(undefined); if (!opened) setMobileReader(false); }} />
+          : opened ? <MailMessage opened={opened} />
             : <div className="reader-placeholder"><p>{labels.selectMessage}</p></div>}
       </section>
     </main>

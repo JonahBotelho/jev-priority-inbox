@@ -37,12 +37,12 @@ header {
   color: #2459c4;
   text-decoration: none;
   font-family: Arial, sans-serif;
-  font-size: 38px;
+  font-size: 32px;
   font-weight: bold;
   letter-spacing: -1.5px;
 }
 .brand span {
-  font: 14px Arial, sans-serif;
+  font: 13px Arial, sans-serif;
   color: #697181;
   letter-spacing: 0;
   margin-left: 12px;
@@ -70,7 +70,7 @@ h2 { font-size: 36px; line-height: 1.2; }
   display: block;
   width: 100%;
   text-align: left;
-  padding: 22px 28px;
+  padding: 12px 18px;
   border: 0;
   border-bottom: 1px solid #dce3ee;
   border-left: 3px solid transparent;
@@ -87,13 +87,13 @@ h2 { font-size: 36px; line-height: 1.2; }
   display: block;
   font-family: Arial, sans-serif;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.4;
   letter-spacing: -.025em;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
-  margin-top: 12px;
+  margin-top: 6px;
 }
 time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
 .message-preview {
@@ -102,17 +102,17 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
   -webkit-line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
-  margin-top: 8px;
+  margin-top: 4px;
   color: #697181;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 .tier {
   display: inline-block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
-  padding: 6px 9px;
+  padding: 4px 6px;
   border-radius: 4px;
   background: #edf3ff;
   color: #214f9e;
@@ -122,11 +122,11 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
 .reader-pane { min-width: 0; }
 .reader-toolbar {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  min-height: 108px;
-  padding: 24px 36px;
+  min-height: 76px;
+  padding: 16px 24px;
   border-bottom: 1px solid #dce3ee;
   background: white;
   position: sticky;
@@ -135,17 +135,17 @@ time, .metadata { color: #697181; font-size: 13px; font-weight: 400; }
 }
 .secondary { color: #566176; border-color: #cbd5e3; background: white; }
 .text-button { color: #2459c4; background: transparent; border: 0; padding: 8px 0; font-size: 14px; }
-.reader-content { padding: 36px clamp(28px, 4vw, 64px) 80px; max-width: 1120px; }
-.reader-content h2 { font-size: clamp(36px, 3.6vw, 54px); margin: 28px 0 20px; overflow-wrap: anywhere; }
+.reader-content { padding: 24px clamp(24px, 3vw, 48px) 56px; max-width: 1120px; }
+.reader-content h2 { font-size: clamp(28px, 2.8vw, 40px); margin: 20px 0 16px; overflow-wrap: anywhere; }
 .metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; line-height: 1.6; }
 .sender { overflow-wrap: anywhere; }
 .message-body {
   font-family: Arial, sans-serif;
-  font-size: 21px;
-  line-height: 1.8;
+  font-size: 18px;
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  margin-top: 44px;
+  margin-top: 28px;
   max-width: 68ch;
 }
 .inbox-feedback:empty { display: none; }
@@ -169,7 +169,7 @@ input, select {
   .brand { font-size: 32px; }
   .workspace { display: block; }
   .queue-container { border-right: 0; }
-  .queue-item { padding: 22px 24px; }
+  .queue-item { padding: 12px 18px; }
   .reader-pane { display: none; }
   .reader-open .reader-pane { display: block; }
   .reader-open .queue-container { display: none; }
@@ -184,8 +184,8 @@ input, select {
   }
   .reader-toolbar button { font-size: 12px; padding: 10px 8px; }
   .reader-toolbar .mobile-back { grid-column: 1 / -1; padding-left: 0; }
-  .reader-content { padding: 28px 24px 64px; }
-  .reader-content h2 { font-size: 36px; }
-  .message-body { font-size: 20px; margin-top: 32px; }
+  .reader-content { padding: 20px 24px 48px; }
+  .reader-content h2 { font-size: 28px; }
+  .message-body { font-size: 17px; margin-top: 24px; }
   .inbox-feedback > * { padding: 12px 20px; }
 }

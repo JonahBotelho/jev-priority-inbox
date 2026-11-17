@@ -5,6 +5,7 @@ export interface ServerSettings { host: string; port: number; user: string; pass
 export interface ManualSettings { email: string; imap: ServerSettings; smtp: ServerSettings }
 export interface MailCard { id: string; subject: string; receivedAt: string; tier: Tier | null; handled: boolean; preview?: string }
 export interface MailDetail { subject: string; text: string; from: string; receivedAt: string;
+  to?: string[]; cc?: string[];
   replyTo?: string; messageId?: string; references?: string[]; threadId?: string }
 export interface ComposeInput { submissionId: string; to: string; cc: string; bcc: string; subject: string;
   text: string; replyToId?: string }

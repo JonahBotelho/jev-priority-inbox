@@ -35,7 +35,7 @@ export class MockMailbox extends Mailbox {
 
   async message(id: string): Promise<MailDetail> {
     const message = await InboxApi.request<MailDetail>(`/demo/messages/${id}`);
-    return { ...message, from: en.mail.demoSender, replyTo: en.mail.demoReplyAddress };
+    return { ...message, from: en.mail.demoSender, replyTo: en.mail.demoReplyAddress, to: [en.mail.demoAddress], cc: [] };
   }
 
   async update(id: string, change: MailChange): Promise<void> {

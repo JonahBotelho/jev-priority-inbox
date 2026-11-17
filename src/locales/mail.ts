@@ -11,7 +11,7 @@ export const mail = {
   imapHost: 'Incoming IMAP server', smtpHost: 'Outgoing SMTP server', port: 'Port', user: 'Username',
   password: 'Password or app password', separate: 'Use separate SMTP credentials', connect: 'Connect',
   priority: 'Priority Only', all: 'All Messages', inboxView: 'Inbox view', older: 'Load older messages', more: 'Show more messages',
-  compose: 'Compose', reply: 'Reply', to: 'To', cc: 'Cc', bcc: 'Bcc', subject: 'Subject', body: 'Message',
+  compose: 'Compose', reply: 'Reply', replyAll: 'Reply all', to: 'To', cc: 'Cc', bcc: 'Bcc', subject: 'Subject', body: 'Message',
   send: 'Send', close: 'Close',
   unclassified: 'Unclassified', empty: 'No priority messages. Open All Messages to read incoming email.',
   noMail: 'No messages in this inbox.', imapFailed: 'Incoming IMAP connection failed. Check the server and credentials.',

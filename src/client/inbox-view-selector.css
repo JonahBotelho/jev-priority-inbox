@@ -3,21 +3,21 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
-  padding: 5px;
-  margin: 16px;
+  padding: 4px;
+  margin: 12px;
   border: 1px solid #e2e6ed;
   border-radius: 13px;
   background: #f0f2f5;
 }
 .inbox-view-selector button {
   min-width: 0;
-  min-height: 44px;
-  padding: 10px 8px;
+  min-height: 36px;
+  padding: 8px;
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
   color: #697181;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 .inbox-view-selector button[aria-pressed=true] {
@@ -29,4 +29,8 @@
 .inbox-view-selector button:hover:not(:disabled) {
   color: #2459c4;
   filter: none;
+}
+
+@media (max-width: 760px) {
+  .inbox-view-selector button { min-height: 44px; }
 }
