@@ -5,6 +5,7 @@ import { MailStore } from '../src/server/mail/MailStore.js';
 import { MailService } from '../src/server/mail/MailService.js';
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 import { ConnectedApplication } from '../src/server/mail/ConnectedApplication.js';
+import { PortalApi } from '../src/server/application/PortalApi.js';
 import type { SendResult, MailDetail, ComposeInput } from '../src/shared/mail.js';
 
 export class MailFixture {
@@ -21,6 +22,10 @@ export class MailFixture {
   constructor(publicUrl = 'http://localhost:8000') {
     delete process.env.JEV_API_KEY;
     process.env.MAIL_ENCRYPTION_KEY = 'ab'.repeat(32);
+    process.env.APP_JWT_SECRET = 'cd'.repeat(32);
+    process.env.INITIAL_ADMIN_EMAIL = 'admin@example.test';
+    process.env.INITIAL_ADMIN_PASSWORD = 'test-admin-password-123';
+    process.env.CLIENT_ORIGIN = 'http://localhost:5173';
     process.env.PUBLIC_URL = publicUrl;
     this.config = new Config();
     this.store = new MailStore(this.database, this.config.encryptionKey);
@@ -39,7 +44,7 @@ export class MailFixture {
     this.service.send = async (_account, input, reply) => {
       this.sends++; this.receivedReply = reply; this.submitted = input; return this.result;
     };
-    this.application = new ConnectedApplication(this.config, this.store, this.service);
+    this.application = new ConnectedApplication(this.config, this.store, this.service, new PortalApi(this.database, this.config));
   }
   static settings(email = 'person@example.test') {
     return { email, imap: { host: 'imap.example.test', port: 993, user: email, password: 'private-password' },

@@ -42,7 +42,7 @@ export class MailAuth {
       const account = store.connect(`google:${identity.sub}`, identity.email, 'google', credentials);
       this.issue(request, response, account);
       void service.refresh(account.id);
-      response.redirect('/');
+      response.redirect(config.clientOrigin + '/inbox');
     });
     this.router.post('/connect/manual', async (request, response) => {
       const key = request.ip ?? '';
@@ -82,7 +82,8 @@ export class MailAuth {
     const token = randomBytes(32).toString('hex');
     this.store.database.connection.prepare('DELETE FROM mail_sessions WHERE expires<?').run(Date.now());
     this.store.database.connection.prepare('INSERT INTO mail_sessions VALUES(?,?,?)').run(this.hash(token), account.id, Date.now() + 8 * 3600000);
-    response.cookie('mail_session', token, { httpOnly: true, sameSite: 'lax', secure: request.secure, path: '/', maxAge: 8 * 3600000 });
+    const secure = request.secure;
+    response.cookie('mail_session', token, { httpOnly: true, sameSite: secure ? 'none' : 'lax', secure, path: '/', maxAge: 8 * 3600000 });
   }
   account(request: Request): Account | undefined {
     const row = this.store.database.connection.prepare('SELECT account_id FROM mail_sessions WHERE token=? AND expires>?')

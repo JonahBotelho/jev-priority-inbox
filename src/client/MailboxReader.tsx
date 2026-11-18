@@ -95,7 +95,7 @@ export function MailboxReader({ mailbox, google }: { mailbox: Mailbox; google: b
       <a className="brand" href="/" aria-label={en.title}>{en.brand}<span>{en.brandSubtitle}</span></a>
       <div className="mail-account"><span>{account.email}</span><div className="mail-actions">
         <button className="secondary" disabled={busy} onClick={() => void perform(async () => {
-          await mailbox.signOut(); window.location.assign('/');
+          await mailbox.signOut(); window.location.assign('/inbox');
         })}>{labels.signOut}</button>
       </div></div>
     </header>

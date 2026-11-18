@@ -19,7 +19,7 @@ export function ConnectMailbox({ google, onConnected }: { google: boolean; onCon
     <main className="connection-center">
       <section className="connection-card" aria-labelledby="connect-heading">
         <h1 id="connect-heading">{labels.connectHeading}</h1>
-        {google ? <a className="connection-google" href="/v1/connect/google">
+        {google ? <a className="connection-google" href={InboxApi.url('/connect/google')}>
           <span className="google-mark" aria-hidden="true">G</span>{labels.google}
         </a> : <button className="connection-google" onClick={() => setError(labels.googleUnavailable)}>
           <span className="google-mark" aria-hidden="true">G</span>{labels.google}

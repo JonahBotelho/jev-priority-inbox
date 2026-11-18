@@ -1,7 +1,10 @@
-// Same-origin browser client. Cookie sessions cover requests and EventSource.
+// Cross-origin client. HttpOnly cookies authenticate requests to the API origin.
 export class InboxApi {
+  static readonly origin = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
+  static url(path: string): string { return `${this.origin}/v1${path}`; }
+
   static async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-    const response = await fetch(`/v1${path}`, { method, headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(this.url(path), { method, credentials: 'include', headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body) });
     if (!response.ok) {
       const result = await response.json();

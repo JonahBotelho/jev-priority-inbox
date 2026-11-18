@@ -37,7 +37,7 @@ export class AccountMailbox extends Mailbox {
   signOut(): Promise<void> { return InboxApi.request('/session', 'DELETE'); }
 
   subscribe(onChange: () => void): () => void {
-    const stream = new EventSource('/v1/events');
+    const stream = new EventSource(InboxApi.url('/events'), { withCredentials: true });
     stream.addEventListener('change', onChange);
     return () => stream.close();
   }

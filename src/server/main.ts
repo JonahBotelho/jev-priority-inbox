@@ -6,14 +6,17 @@ import { en } from '../locales/en.js';
 import { MailStore } from './mail/MailStore.js';
 import { MailService } from './mail/MailService.js';
 import { ConnectedApplication } from './mail/ConnectedApplication.js';
+import { PortalApi } from './application/PortalApi.js';
 
 class Server {
-  static start(): void {
+  static async start(): Promise<void> {
     const config = new Config();
     const database = new Database(config.databasePath);
     const store = new MailStore(database, config.encryptionKey);
     const service = new MailService(store, config, new ChangeEvents());
-    const server = new ConnectedApplication(config, store, service).app.listen(config.port, () => console.log(en.listening, config.port));
+    const portal = new PortalApi(database, config);
+    await portal.bootstrapAdmin();
+    const server = new ConnectedApplication(config, store, service, portal).app.listen(config.port, () => console.log(en.listening, config.port));
     let syncing = false;
     const sync = async () => {
       if (syncing) return;
@@ -33,4 +36,4 @@ class Server {
   }
 }
 
-Server.start();
+void Server.start().catch(error => { console.error(error); process.exitCode = 1; });

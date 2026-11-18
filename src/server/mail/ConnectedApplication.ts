@@ -1,6 +1,5 @@
 // HTTP entry point for independent connected accounts and classification-free mail.
 import express from 'express';
-import { resolve } from 'node:path';
 import type { Config } from '../config.js';
 import { MailStore } from './MailStore.js';
 import { MailService } from './MailService.js';
@@ -8,27 +7,38 @@ import { MailAuth } from './MailAuth.js';
 import type { ComposeInput, SendResult } from '../../shared/mail.js';
 import { en } from '../../locales/en.js';
 import { DemoPreview } from '../http/DemoPreview.js';
+import { PortalApi } from '../application/PortalApi.js';
 
 export class ConnectedApplication {
   readonly app = express();
-  constructor(config: Config, store: MailStore, service: MailService) {
+  constructor(config: Config, store: MailStore, service: MailService, portal: PortalApi) {
     const auth = new MailAuth(store, service, config);
     this.app.set('trust proxy', 1);
     this.app.disable('x-powered-by');
     this.app.use((_request, response, next) => {
       response.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin',
-        'Content-Security-Policy': "default-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'" }); next();
+        'Content-Security-Policy': `default-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.publicUrl).origin}; frame-ancestors 'none'` }); next();
     });
     this.app.use(express.json({ limit: '256kb' }));
     this.app.use('/v1', (request, response, next) => {
+      const allowed = new Set([config.clientOrigin, new URL(config.publicUrl).origin]);
+      const origin = request.get('origin');
+      if (origin && !allowed.has(origin)) { response.status(403).json({ error: en.forbidden }); return; }
+      if (origin) {
+        response.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' });
+      }
+      if (request.method === 'OPTIONS') {
+        response.set({ 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type' }); response.sendStatus(204); return;
+      }
       if (!['GET', 'HEAD'].includes(request.method) &&
-        ((request.get('origin') && request.get('origin') !== new URL(config.publicUrl).origin)
-          || request.get('sec-fetch-site') === 'cross-site')) {
+        (request.get('sec-fetch-site') === 'cross-site' && !origin)) {
         response.status(403).json({ error: en.forbidden }); return;
       }
       next();
     });
     this.app.get('/v1/mode', (_request, response) => response.json({ connected: true, google: Boolean(config.googleClientId && config.googleClientSecret) }));
+    this.app.use('/v1', portal.router);
     this.app.use('/v1', auth.router);
     this.app.use('/v1', new DemoPreview().router);
     this.app.use('/v1', (request, response, next) => {
@@ -109,8 +119,6 @@ export class ConnectedApplication {
       response.json(result);
     });
     this.app.use('/v1', (_request, response) => { response.status(404).json({ error: en.missing }); });
-    this.app.use(express.static(resolve('dist/client')));
-    this.app.get('/{*path}', (_request, response) => response.sendFile(resolve('dist/client/index.html')));
     this.app.use(((error, _request, response, _next) => {
       const allowed = [en.mail.validation, en.mail.imapFailed, en.mail.smtpFailed, en.invalidLogin, en.missing];
       response.status(400).json({ error: allowed.includes(error.message) ? error.message : en.unavailable });

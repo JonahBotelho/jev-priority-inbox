@@ -6,9 +6,14 @@ import { InboxApi } from './InboxApi.js';
 import { MailboxReader } from './MailboxReader.js';
 import { AccountMailbox } from './Mailbox.js';
 import { MockMailbox } from './MockMailbox.js';
+import { Portal } from './Portal.js';
 import './styles.css';
 
 async function start() {
+  if (!['/demo', '/inbox'].includes(window.location.pathname)) {
+    createRoot(document.getElementById('root')!).render(<React.StrictMode><Portal /></React.StrictMode>);
+    return;
+  }
   const capabilities = await InboxApi.request<{ google?: boolean }>('/mode');
   const mailbox = window.location.pathname === '/demo' ? new MockMailbox() : new AccountMailbox();
   createRoot(document.getElementById('root')!).render(<React.StrictMode>

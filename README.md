@@ -1,39 +1,66 @@
 # Jev Priority Inbox
 
-TypeScript classroom prototype based on `docs/prjM5_feasibility.pdf`. Express serves a React inbox with account-scoped SQLite storage. Priority mail appears in the default view. Originals stay with the mailbox provider.
+Jev Priority Inbox classifies email text by urgency through a protected REST API, records each inference request, and provides a user page and administrator usage dashboard. The API sends the message to the Jev AI service using a server-side key, receives urgency probabilities, and maps them to Emergency, Urgent, or Routine with the project’s priority policy. The web client never receives the provider key.
 
-The inbox uses smaller text and tighter spacing so more emails fit in the left queue. The reading pane has Compose on the left of its top toolbar and message actions on the right. Each email card shows up to two lines of opening message text beneath its title. Opening or reloading the inbox selects the first available email. Select another email in the queue to read without dismissing it. On mobile, selecting an email opens the reader with a Back to inbox action; Compose is also available above the message list. New arrivals preserve the open message. Demo and account mail share the same reader, controls, and styles. Priority badges use red for Emergency, blue for Urgent, and grey for Routine; Refresh sits beside the Inbox heading.
+## Requirements and local setup
 
-## Run locally
+- Node.js 24 or newer
+- An instructor-approved Jev API key for live classification
+- A stable 64-character hexadecimal encryption key and a separate 64-character hexadecimal JWT secret
+- An initial administrator email and a unique password of at least 12 characters
 
-Requires Node.js 24. Run `npm install`, copy `.env.example` to `.env` if needed, and configure the encryption key below before running `npm run dev`. Open `http://localhost:8000`. Express serves both the frontend and API on port 8000; Vite rebuilds assets without opening another server. Reload the browser after frontend changes. The site always opens the account-connection interface. Legacy `APP_MODE` settings do not change the website.
+On this Apple Silicon Mac, if `node -v` still returns Node 22 after installing Node 24 with Homebrew, run this in the same terminal before npm commands:
 
-`npm test` checks policy, persistence, recovery, failures and HTTP access. `npm run build` compiles both apps. `npm start` serves the production build at `http://localhost:8000`.
+```sh
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+hash -r
+node -v
+```
 
-For browser checks, run `npx playwright install chromium`, `npm run build`, then `npm run test:browser`. The test uses a separate server on port 3101 with an isolated in-memory database.
+Confirm it prints `v24` or newer.
 
-## Live configuration
+```sh
+npm install
+cp -n .env.example .env
+```
 
-### Connected mailboxes
+In `.env`, set `MAIL_ENCRYPTION_KEY` and `APP_JWT_SECRET` to different values generated with:
 
-Set `MAIL_ENCRYPTION_KEY` (64 hexadecimal characters). Generate it with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Keep the encryption key outside SQLite and retain it across restarts. Use a fresh persistent `SQLITE_PATH` (default `./data/mail.sqlite`), separate from any old classroom database. Jev keys are not required for mailbox connections. Run one server instance.
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
 
-Set `PUBLIC_URL=http://localhost:8000` and `PORT=8000` for local development. After changing `.env`, restart `npm run dev` and open `http://localhost:8000` to see the email-account connection screen. Deploy with HTTPS behind one trusted proxy. Manual connections require public IMAP servers with implicit TLS (usually 993), plus SMTP on 587 with required STARTTLS or 465 with implicit TLS. Enter a password or provider-issued app password; providers requiring their own OAuth flow need an additional adapter.
+Also set `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`, and `JEV_API_KEY`. Keep the two secrets and provider key private. Local defaults use `CLIENT_ORIGIN=http://localhost:5173`, `VITE_API_URL=http://localhost:8000`, and `PUBLIC_URL=http://localhost:8000`.
 
-For Gmail, enable the Gmail API in a Google Cloud project and create a Web application OAuth client. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and register `<PUBLIC_URL>/v1/connect/google/callback` as the exact authorized redirect URI. Configure the consent screen with `openid`, `email`, `gmail.readonly`, and `gmail.send`, and add named pilot users while the app is in Testing. Google test refresh tokens may expire after seven days; use Reconnect account to authorize again. Public release needs Google's applicable verification.
+Start both local services:
 
-Each user connects one mailbox. The app imports the latest 50 inbox messages, checks every 60 seconds while running, and offers Load older messages in All Messages. Mail starts Unclassified and can be assigned a priority manually. Priority is the default view. Compose and the Reply / Reply all dropdown support plain text and comma-separated To/Cc/Bcc addresses. Reply all includes the sender and original To/Cc recipients, excluding your account and duplicates; Bcc stays empty. A send confirmation means provider acceptance. Unknown send outcomes require checking the source mailbox before trying again. Sign out ends the session and returns to the account-connection screen. The inbox has no Disconnect button. Cached account data persists across sign-outs; short previews are cached locally and full bodies are fetched on demand.
+```sh
+npm run dev
+```
 
-The connection screen offers Google sign-in, a separate manual server-settings screen, and View demo inbox. The demo at `/demo` opens the nine existing fictional samples without signing in. Both connected and demo inboxes place a Priority Only / All Messages selector directly above the message list. The demo uses a mock mailbox adapter with the same compose, reply, priority, handled, refresh, and sign-out controls as account mail. Mock edits reset on reload and sends are simulated without contacting mail providers. Only approved sample data is exposed.
+Open `http://localhost:5173`. Register a regular account, or sign in with the administrator credentials from `.env`. The user page has the AI classifier and personal request total. The admin account sees the user and usage dashboard. Use fictional text while demonstrating. The legacy fictional inbox is at `/demo`; the optional connected mailbox prototype is at `/inbox`.
 
-Automated tests use offline provider adapters. Live pilot acceptance still requires configured Google and IMAP/SMTP accounts: send Gmail to the manual account, read and reply in this app, verify Gmail threading, then restart and check account isolation and duplicate prevention.
+## Build and test
 
-### Offline comparison
+```sh
+npm test
+npm run build
+npx playwright install chromium
+npm run test:browser
+```
 
-`npm run compare` requires `JEV_API_KEY` and `GEMINI_API_KEY`. It prints one JSON result per approved example with expected label, Jev leading class and display tier, Gemini label, failures, and timings. It makes one attempt per model/example and bypasses stored decisions.
+`npm run dev` starts Vite on port 5173 and Express on port 8000. `npm run build` builds the independent static client and compiles the API. `npm start` starts only the API; deploy the static client separately. API endpoint contracts are documented in [docs/api.md](docs/api.md), and the component/deployment diagram is in [docs/architecture.md](docs/architecture.md).
 
-## Prototype limits
+## Deploy as two origins
 
-The website currently defers Jev classification. Mail uses plain-text rendering without attachments; message retrieval is limited to 5 MB. The optional demo contains fictional English samples. The offline study pipeline remains for regression tests and comparison. Its schema is initialized only by the study repository; account startup leaves existing study tables untouched.
+The repository includes a Render blueprint for the API and Vercel configuration for the client. Deploy the API first, attach its persistent disk, and configure `PUBLIC_URL` to the API HTTPS URL, `CLIENT_ORIGIN` to the client HTTPS URL, `APP_JWT_SECRET`, `MAIL_ENCRYPTION_KEY`, `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`, and `JEV_API_KEY` as private environment values. Set Vercel’s `VITE_API_URL` to the API HTTPS URL and deploy the client. Redeploy the client after changing `VITE_API_URL`; it is embedded at build time. For reliable browser cookie behavior, use two HTTPS subdomains under the same registered domain (for example, `app.example.com` and `api.example.com`) while keeping them as separate origins.
 
-Sessions expire after eight hours and are revocable records in SQLite; `SESSION_SECRET` is no longer used. Event-stream heartbeats keep connections open without reloading the message list. Marking handled and correcting a tier affect this inbox only. The comparison runs all nine approved examples. The 160-message study, live latency trial, and provider verification require credentials and later evaluation.
+Keep one API instance for SQLite. Do not put credentials in source control. Create a dedicated regular demo account through registration and share isolated demo credentials with the instructor outside the repository. Set the initial admin credentials privately and share the admin demo login through the course submission channel. Confirm with the instructor/TA that Jev is an approved third-party AI provider before presenting the live endpoint.
+
+## What Jev means here
+
+Jev is the third-party AI classifier used by this project, not a model hosted in this repository. The backend’s `JevClassifier` sends an email subject, message text, recipient role, and time zone to the Jev API. The configured model is `jev-1.14.0`; it returns probabilities for Emergency, Urgent, and Routine. `PriorityPolicy` validates the probabilities and applies the feasibility-study thresholds to select the displayed tier. `POST /v1/classify` exposes that function to signed-in API consumers, while the API keeps `JEV_API_KEY` server-side. This is the assignment’s third-party API option, not the self-hosted-model bonus.
+
+## Prototype boundaries
+
+Mailbox reading/sending is still a separate optional feature with Google OAuth or manual IMAP/SMTP connections. Those mailbox connection methods do not authenticate assignment portal users. The demo inbox uses fictional samples and simulated sending. Jev classification is currently text-only; it does not fetch or classify a connected mailbox automatically and does not handle attachments.
