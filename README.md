@@ -65,6 +65,8 @@ Keep one API instance for SQLite. Do not put credentials in source control. Crea
 4. On the existing Render API service, open **Environment**. Set `JEV_FUNCTION_URL` to `https://YOUR-SITE.netlify.app/.netlify/functions/jev-classify`, using the production hostname, and `JEV_FUNCTION_SECRET` to the value from step 2. Save the variables and deploy this revision. Local Express can use the same two values in `.env`. [Render environment settings](https://render.com/docs/configure-environment-variables)
 5. Sign in to the existing web client and classify a fictional message. A successful `POST /v1/classify` returns `provider: "Jev"` and `model: "jev-1.14.0"` and adds a history entry. To check reachability first, send a `POST` to the function URL without a token. A configured function returns `401` before calling Jev.
 
+For automatic deployments, a GitHub repository owner adds the Netlify project's public SSH deploy key under **Settings → Deploy keys** with read-only access. Under **Settings → Webhooks**, subscribe `https://api.netlify.com/hooks/github` to **push** events with content type `application/json`. A push to `main` then starts the production build. [Netlify's repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
+
 For a manual deployment from another checkout, use Node 24, run `npm ci` and `npx netlify-cli login`, then run `npx netlify-cli link` and select `isa-term-project`. From a linked checkout, `npx netlify-cli deploy --prod` publishes the function using the project's existing settings. [Netlify CLI setup](https://docs.netlify.com/api-and-cli-guides/cli-guides/get-started-with-cli/)
 
 ## What Jev means here
