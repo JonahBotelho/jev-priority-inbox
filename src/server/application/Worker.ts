@@ -15,12 +15,12 @@ export class Worker {
     private readonly classifier: Classifier, private readonly events: ChangeEvents,
     private readonly config: Pick<ClassificationInput, 'role' | 'timeZone'>) {}
 
-  async tick(): Promise<void> {
-    if (this.running) return;
+  async tick(mailbox?: string): Promise<boolean> {
+    if (this.running) return false;
     this.running = true;
     try {
-      const job = this.repository.claim();
-      if (!job) return;
+      const job = this.repository.claim(mailbox);
+      if (!job) return false;
       try {
         const original = await this.attempt(signal => this.mailbox.fetch(job.provider_id, signal));
         const subject = this.preparation.clean(original.subject);
@@ -41,6 +41,7 @@ export class Worker {
         this.repository.fail(job, transient);
       }
       this.events.publish(job.mailbox);
+      return true;
     } finally { this.running = false; }
   }
 

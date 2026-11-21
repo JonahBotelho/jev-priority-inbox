@@ -18,15 +18,22 @@ export class InboxRepository {
     });
   }
 
-  recover(): void {
+  recover(mailbox: string | null = null): void {
     // An interrupted attempt can safely repeat because only a committed decision is displayed.
-    this.database.connection.exec("UPDATE messages SET status='pending' WHERE status='processing'");
+    this.database.connection.prepare(`UPDATE messages SET status='pending' WHERE status='processing'
+      AND (? IS NULL OR mailbox=?)`).run(mailbox, mailbox);
   }
 
-  claim(): Job | undefined {
+  retryFailed(mailbox: string): void {
+    this.database.connection.prepare(`UPDATE messages SET status='pending', attempts=0, next_attempt_at=0
+      WHERE mailbox=? AND status='failed'`).run(mailbox);
+  }
+
+  claim(mailbox: string | null = null): Job | undefined {
     return this.database.transaction(() => {
       const row = this.database.connection.prepare(`SELECT * FROM messages WHERE status='pending'
-        AND next_attempt_at <= ? ORDER BY created_at, id LIMIT 1`).get(Date.now()) as unknown as Job | undefined;
+        AND next_attempt_at <= ? AND (? IS NULL OR mailbox=?) ORDER BY created_at, id LIMIT 1`)
+        .get(Date.now(), mailbox, mailbox) as unknown as Job | undefined;
       if (row) this.database.connection.prepare("UPDATE messages SET status='processing', attempts=attempts+1 WHERE id=?").run(row.id);
       return row;
     });
@@ -46,11 +53,13 @@ export class InboxRepository {
       .run(retry ? 'pending' : 'failed', Date.now() + 1000, job.id);
   }
 
-  snapshot(mailbox: string): Snapshot {
-    const cards = this.database.connection.prepare(`SELECT id, COALESCE(corrected_tier,tier) AS tier, subject, preview,
+  snapshot(mailbox: string, decisions: 'with-corrections' | 'model-only' = 'with-corrections'): Snapshot {
+    const tier = decisions === 'model-only' ? 'tier' : 'COALESCE(corrected_tier,tier)';
+    const confirmed = decisions === 'model-only' ? 'AND probabilities IS NOT NULL' : '';
+    const cards = this.database.connection.prepare(`SELECT id, ${tier} AS tier, subject, preview,
       received_at AS receivedAt FROM messages WHERE mailbox=? AND status='complete' AND handled=0
-      AND COALESCE(corrected_tier,tier) IN ('Emergency','Urgent')
-      ORDER BY CASE COALESCE(corrected_tier,tier) WHEN 'Emergency' THEN 0 ELSE 1 END,
+      ${confirmed} AND ${tier} IN ('Emergency','Urgent')
+      ORDER BY CASE ${tier} WHEN 'Emergency' THEN 0 ELSE 1 END,
       score DESC, received_at DESC, id ASC`).all(mailbox) as unknown as Card[];
     const counts = this.database.connection.prepare(`SELECT
       SUM(CASE WHEN status IN ('pending','processing') THEN 1 ELSE 0 END) AS pending,
