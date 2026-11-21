@@ -1,24 +1,17 @@
-// The fictional inbox remains a public preview; its writes stay in the mock client.
+// Existing inbox bookmarks open the same public page on a narrow screen.
 import { test, expect } from '@playwright/test';
-import { en } from '../../src/locales/en.js';
+import { priorityInboxText as labels } from '../../src/locales/priorityInbox.js';
 
-test('demo inbox opens without an account and edits only mock data', async ({ page }) => {
-  const mutations: string[] = [];
-  page.on('request', request => {
-    if (request.method() !== 'GET' && /\/v1\/(messages|sync|session)/.test(request.url())) mutations.push(request.url());
+test.use({ viewport: { width: 360, height: 800 } });
+
+for (const path of ['/demo', '/inbox']) {
+  test(`${path} opens the public inbox on mobile without an account`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.getByText(labels.address, { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: labels.heading })).toBeVisible();
+    // The isolated browser-test backend has no paid provider credentials.
+    await expect(page.getByRole('status')).toHaveText(labels.unavailable);
+    await expect(page.locator('form, input[type=password]')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
-  await page.goto('/demo');
-  await expect(page.locator('.inbox-queue button')).toHaveCount(6);
-  await expect(page.locator('.message-body')).toHaveText(en.fixtures.outage.text);
-  await page.getByRole('button', { name: en.mail.handled }).click();
-  await expect(page.locator('.inbox-queue button')).toHaveCount(5);
-  await page.getByRole('button', { name: en.mail.compose, exact: true }).click();
-  await page.getByLabel(en.mail.to, { exact: true }).fill('sample@example.test');
-  await page.getByLabel(en.mail.subject, { exact: true }).fill('Fictional message');
-  await page.getByLabel(en.mail.body, { exact: true }).fill('This is only a demo.');
-  await page.getByRole('button', { name: en.mail.send, exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText(en.mail.simulated);
-  await page.reload();
-  await expect(page.locator('.inbox-queue button')).toHaveCount(6);
-  expect(mutations).toEqual([]);
-});
+}

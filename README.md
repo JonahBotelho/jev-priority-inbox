@@ -1,78 +1,37 @@
 # Jev Priority Inbox
 
-Jev Priority Inbox classifies email text by urgency through a protected REST API, records each inference request, and provides a user page and administrator usage dashboard. The Render API sends classification requests to an authenticated Netlify Function. The function calls Jev through Netlify AI Gateway and returns three probabilities. Render applies the project’s priority policy and saves the result.
+The [public demo](https://jev-priority-inbox-client.onrender.com/) opens straight to the inbox. The address at the top is a placeholder for future inbound delivery. The list contains fictional sample emails that Jev classified as Emergency or Urgent. Expand a row to read its message preview. The home page, `/inbox`, and `/demo` share the same reader.
 
-## Requirements and local setup
+## Run locally
 
-- Node.js 24 or newer
-- A Netlify Function URL and shared secret for live classification (see [Jev setup](#set-up-jev-on-netlify-free))
-- A stable 64-character hexadecimal encryption key and a separate 64-character hexadecimal JWT secret
-- An initial administrator email and a password of at least 3 characters
-
-On this Apple Silicon Mac, if `node -v` still returns Node 22 after installing Node 24 with Homebrew, run this in the same terminal before npm commands:
+Use Node.js 24 or newer and run these commands from the repository root.
 
 ```sh
-export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-hash -r
-node -v
-```
-
-Confirm it prints `v24` or newer.
-
-```sh
-npm install
+npm ci
 cp -n .env.example .env
 ```
 
-In `.env`, set `MAIL_ENCRYPTION_KEY` and `APP_JWT_SECRET` to different values generated with:
+In the server's `.env`, set `JEV_FUNCTION_URL` to the deployed function URL and `JEV_FUNCTION_SECRET` to its shared bearer secret. Run `npm run dev`, then open `http://localhost:5173`. The API runs on port 8000.
+
+At startup the API queues the nine approved sample deliveries. It submits pending samples to `jev-1.14.0` and saves each decision in SQLite. Readers see confirmed messages as reviews finish. Refreshing the page reads saved results. A missing relay configuration or failed review is visible in the UI. Routine messages stay out of the priority list.
+
+## Deploy
+
+- **Render API and client.** [render.yaml](render.yaml) configures the Node web service and the static site. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` on the API. On the client, set `VITE_API_URL` to the API origin and redeploy after changing it. The static publish directory is `dist/client`.
+- **Storage.** The API uses `SQLITE_PATH`, defaulting to `./data/mail.sqlite`. Render Free has ephemeral local storage. If that file resets, the API reviews the sample deliveries again.
+- **Netlify Function.** [netlify.toml](netlify.toml) deploys [jev-classify](netlify/functions/jev-classify.ts) from `main` to `isa-term-project`. Set the same `JEV_FUNCTION_SECRET` on the function. Netlify AI Gateway supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL`. Enable AI features, complete a production deploy and allow public access to the production function so Render can reach it. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
+- **Automatic Jev deployments.** The repository owner registers the Netlify SSH public key with read-only access and subscribes the Netlify GitHub webhook to push events with content type `application/json`. [Repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
+- **Verify.** Visit `/v1/health` on the API, then open the client in a fresh browser. The inbox loads without a session. `GET /v1/priority` reports the saved cards and any pending or failed reviews.
+
+## Development
 
 ```sh
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
-
-Also set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD`. For live classification, copy `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` from the Jev setup below into the server's `.env`. Local defaults use `CLIENT_ORIGIN=http://localhost:5173`, `VITE_API_URL=http://localhost:8000`, and `PUBLIC_URL=http://localhost:8000`.
-
-Start both local services:
-
-```sh
-npm run dev
-```
-
-Open `http://localhost:5173`. Register a regular account, or sign in with the administrator credentials from `.env`. The user page has the AI classifier and personal request total. The admin account sees the user and usage dashboard. Use fictional text while demonstrating. The legacy fictional inbox is at `/demo`; the optional connected mailbox prototype is at `/inbox`.
-
-## Build and test
-
-```sh
-npm test
 npm run build
+npm test
 npx playwright install chromium
 npm run test:browser
 ```
 
-`npm run dev` starts Vite on port 5173 and Express on port 8000. `npm run build` builds the independent static client and compiles the API. `npm start` starts only the API; deploy the static client separately. API endpoint contracts are documented in [docs/api.md](docs/api.md), and the component/deployment diagram is in [docs/architecture.md](docs/architecture.md).
+The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels and placeholder address](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [public demo inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
 
-## Deploy as two origins
-
-The repository includes a Render blueprint ([render.yaml](render.yaml)) for both the API web service and the static client (as well as [vercel.json](vercel.json) if hosting the client on Vercel). Deploy the API first and configure `PUBLIC_URL` to the API HTTPS URL, `CLIENT_ORIGIN` to the client HTTPS URL, plus `APP_JWT_SECRET`, `MAIL_ENCRYPTION_KEY`, `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`, `JEV_FUNCTION_URL`, and `JEV_FUNCTION_SECRET`. Set the client's `VITE_API_URL` to the Render API HTTPS URL and deploy the client. Redeploy the client after changing `VITE_API_URL`, which is embedded at build time. For reliable browser cookie behavior across strict browsers, use two HTTPS subdomains under the same custom domain (for example, `app.example.com` and `api.example.com`).
-
-Until an external database (such as Neon PostgreSQL) is connected, Render Free uses ephemeral local SQLite storage (`./data/mail.sqlite`) and keeps one API instance. Do not put credentials in source control. Create a dedicated regular demo account through registration and share isolated demo credentials with the instructor outside the repository. Set the initial admin credentials privately and share the admin demo login through the course submission channel. Confirm with the instructor/TA that Jev is an approved third-party AI provider before presenting the live endpoint.
-
-### Set up Jev on Netlify Free
-
-1. Use the existing Netlify project `isa-term-project` on the credit-based Free plan. Its production source is `JonahBotelho/jev-priority-inbox` on `main`. Merge the function and [netlify.toml](netlify.toml) together. The repository root is the base, `dist/netlify-public` is the static publish directory, and `netlify/functions` contains the Jev function. The Free plan includes 300 shared credits per month. [Netlify Free plan](https://www.netlify.com/pricing/personal-vs-free/)
-2. Generate one new server-to-server secret locally with `openssl rand -hex 32`. In the Netlify project's **Environment variables**, add it as `JEV_FUNCTION_SECRET` for **Production**, with the Free plan's default scope. Save the same value for Render. Netlify supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL` at function runtime. Leave those two variables unset in user-managed settings. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
-3. Confirm **Team settings → AI enablement** is on and run a production deploy after saving the secret. Netlify activates AI Gateway after the first production deploy. Under **Project configuration → General → Visitor access → Project visibility**, set this project's production deploy to **Public** so Render can reach the function. The function authenticates every classification request. [Project visibility](https://docs.netlify.com/manage/security/secure-access-to-sites/project-visibility/)
-4. On the existing Render API service, open **Environment**. Set `JEV_FUNCTION_URL` to `https://YOUR-SITE.netlify.app/.netlify/functions/jev-classify`, using the production hostname, and `JEV_FUNCTION_SECRET` to the value from step 2. Save the variables and deploy this revision. Local Express can use the same two values in `.env`. [Render environment settings](https://render.com/docs/configure-environment-variables)
-5. Sign in to the existing web client and classify a fictional message. A successful `POST /v1/classify` returns `provider: "Jev"` and `model: "jev-1.14.0"` and adds a history entry. To check reachability first, send a `POST` to the function URL without a token. A configured function returns `401` before calling Jev.
-
-For automatic deployments, a GitHub repository owner adds the Netlify project's public SSH deploy key under **Settings → Deploy keys** with read-only access. Under **Settings → Webhooks**, subscribe `https://api.netlify.com/hooks/github` to **push** events with content type `application/json`. A push to `main` then starts the production build. [Netlify's repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
-
-For a manual deployment from another checkout, use Node 24, run `npm ci` and `npx netlify-cli login`, then run `npx netlify-cli link` and select `isa-term-project`. From a linked checkout, `npx netlify-cli deploy --prod` publishes the function using the project's existing settings. [Netlify CLI setup](https://docs.netlify.com/api-and-cli-guides/cli-guides/get-started-with-cli/)
-
-## What Jev means here
-
-Jev supplies the assignment’s third-party AI service. The [function](netlify/functions/jev-classify.ts) submits the email subject, text, arrival time, recipient role and time zone using the [shared classification contract](src/shared/jev.ts). Render’s `PriorityPolicy` applies the feasibility-study thresholds to the Emergency, Urgent and Routine probabilities. The [function tests](tests/jev-function.test.ts) cover its access and response checks. The [portal integration test](tests/portal-api.test.ts) covers the full request path using a simulated gateway response.
-
-## Prototype boundaries
-
-Mailbox reading/sending is still a separate optional feature with Google OAuth or manual IMAP/SMTP connections. Those mailbox connection methods do not authenticate assignment portal users. The demo inbox uses fictional samples and simulated sending. Jev classification is currently text-only; it does not fetch or classify a connected mailbox automatically and does not handle attachments.
+The optional `npm run compare` command also requires `GEMINI_API_KEY` for the model comparison. See the [API contract](docs/api.md) and [architecture](docs/architecture.md) for the public demo.

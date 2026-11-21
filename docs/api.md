@@ -1,49 +1,29 @@
-# Jev Priority API
+# Public inbox API
 
-Local API base: `http://localhost:8000/v1`. The client is a separate origin at `http://localhost:5173`.
-JSON endpoints that require authentication use the `app_session` HttpOnly cookie. The API allows the configured `CLIENT_ORIGIN` only and requires credentialed CORS for browser clients.
+The demo serves read-only JSON under `/v1`. The client sends ordinary cross-origin GET requests without cookies. The public server mounts the following two routes.
 
-## Authentication
+## GET /v1/health
 
-### `POST /auth/register`
+Returns `200` with `{"status":"ok"}` when the API is running.
 
-Create a standard user and sign in. Passwords must be 3–256 characters.
+## GET /v1/priority
 
-```json
-{ "email": "student@example.test", "password": "a unique test password" }
-```
-
-Returns `201` and sets an eight-hour JWT cookie. The first administrator is created from `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` at startup; public registration cannot select a role.
-
-### `POST /auth/login`
-
-Accepts the same email/password JSON and returns `200` with the account id, email, and role. Repeated failures are rate-limited.
-
-### `GET /auth/me`, `POST /auth/logout`
-
-Return the signed-in account or revoke its server-side session record and clear the cookie. Unauthenticated requests receive `401`.
-
-## AI service
-
-### `POST /classify`
-
-Requires a signed-in user. Render reads `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` from its server environment to invoke the Netlify Function. The browser calls the Render API with its existing session cookie.
+Returns an inbox snapshot. Each card has a stable ID, a confirmed tier, a subject, a message preview, and its fictional arrival time in UTC. The client displays local time. The following is an abbreviated example.
 
 ```json
-{ "subject": "Production database is unavailable", "text": "Customer requests are failing. Restore database access now." }
+{
+  "cards": [{
+    "id": "example-id",
+    "tier": "Emergency",
+    "subject": "Checkout is down",
+    "preview": "Payments are failing for every customer right now.",
+    "receivedAt": "2026-11-20T18:10:00.000Z"
+  }],
+  "processing": { "pending": 0, "failed": 0 },
+  "reviewAvailable": true
+}
 ```
 
-Returns a JSON object with `id`, `tier` (`Emergency`, `Urgent`, or `Routine`), `score`, `provider`, `model`, and `durationMs`. Subject is limited to 500 characters; message text is limited to 10,000. The API does not return provider credentials or raw model probabilities. Successful results are stored without the submitted subject or message text. Each inference attempt, including upstream failures, is recorded in `api_usage`.
+Emergency comes first, then Urgent. Within a tier the API orders by descending priority score, then newer arrival time and stable ID. Only completed decisions with stored Jev probabilities for this demo mailbox qualify. Pending, failed, and Routine messages have no priority card.
 
-Render returns `503` if its function URL or secret is missing or invalid. A failed function call, a gateway error, or invalid probabilities produce `502` and a failed usage record. A secret mismatch between Render and Netlify also results in `502` at the portal.
-
-## Usage and administration
-
-- `GET /usage/me` — authenticated user’s request and success totals.
-- `GET /classifications` — the signed-in user’s latest 50 tier/score/model results; source message text is not retained.
-- `GET /admin/dashboard` — administrator-only totals, registered users, and the latest 100 usage events.
-- `PATCH /admin/users/{id}` — administrator-only role update; JSON body is `{ "role": "user" }` or `{ "role": "admin" }`.
-- `DELETE /admin/users/{id}` — administrator-only user deletion, which also removes usage history. The current administrator and last remaining administrator are protected.
-- `GET /health` — deployment health check.
-
-Administrator routes check the role in the database on every request; hiding the dashboard in the client is not the security boundary.
+`pending` includes in-flight reviews. The browser refreshes while work is pending and `reviewAvailable` is true. Previously saved decisions can be read even when the relay is unconfigured. Failed samples become eligible for a new review when the configured API restarts. Reading the list incurs no inference calls.

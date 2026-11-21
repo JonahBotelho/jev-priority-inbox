@@ -1,39 +1,24 @@
-// Single account-based website with periodic mailbox synchronization.
-import { Config } from './config.js';
+// Start the public demo API and finish reviewing any outstanding sample emails.
+import 'dotenv/config';
+import { JevClassifier } from './adapters/Providers.js';
+import { PublicPriorityInbox } from './application/PublicPriorityInbox.js';
+import { createPublicInboxApi } from './http/PublicInboxApi.js';
 import { Database } from './infrastructure/Database.js';
-import { ChangeEvents } from './application/ChangeEvents.js';
 import { en } from '../locales/en.js';
-import { MailStore } from './mail/MailStore.js';
-import { MailService } from './mail/MailService.js';
-import { ConnectedApplication } from './mail/ConnectedApplication.js';
-import { PortalApi } from './application/PortalApi.js';
 
-class Server {
-  static async start(): Promise<void> {
-    const config = new Config();
-    const database = new Database(config.databasePath);
-    const store = new MailStore(database, config.encryptionKey);
-    const service = new MailService(store, config, new ChangeEvents());
-    const portal = new PortalApi(database, config);
-    await portal.bootstrapAdmin();
-    const server = new ConnectedApplication(config, store, service, portal).app.listen(config.port, () => console.log(en.listening, config.port));
-    let syncing = false;
-    const sync = async () => {
-      if (syncing) return;
-      syncing = true;
-      try { await service.tick(); } finally { syncing = false; }
-    };
-    const refresh = () => { void sync().catch(() => console.error(en.unavailable)); };
-    refresh();
-    const timer = setInterval(refresh, 60000);
-    const shutdown = () => {
-      clearInterval(timer);
-      server.close();
-      server.closeAllConnections();
-    };
-    process.once('SIGTERM', shutdown);
-    process.once('SIGINT', shutdown);
-  }
+const port = Number(process.env.PORT ?? 8000);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(en.config);
+const database = new Database(process.env.SQLITE_PATH || './data/mail.sqlite');
+const inbox = new PublicPriorityInbox(database, JevClassifier.fromEnvironment());
+const server = createPublicInboxApi(inbox).listen(port, () => console.log(en.listening, port));
+const controller = new AbortController();
+const reviewing = inbox.reviewPending(controller.signal).catch(() => console.error(en.unavailable));
+
+function shutdown() {
+  controller.abort();
+  server.close(() => { void reviewing.then(() => database.connection.close()); });
+  server.closeAllConnections();
 }
 
-void Server.start().catch(error => { console.error(error); process.exitCode = 1; });
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);

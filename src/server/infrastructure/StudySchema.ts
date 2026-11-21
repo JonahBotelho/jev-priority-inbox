@@ -1,4 +1,4 @@
-// Legacy study migrations run only when the offline study repository is used.
+// Priority queue schema used by the public demo and offline studies.
 import type { Database } from './Database.js';
 
 export class StudySchema {

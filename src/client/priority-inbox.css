@@ -1,0 +1,89 @@
+:root {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #172c2a;
+  background: #f7f8f5;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+.inbox-width { width: min(100% - 64px, 1024px); margin-inline: auto; }
+.inbox-masthead { background: #fff; border-bottom: 1px solid #dfe5de; }
+.wordmark { display: flex; align-items: center; gap: 10px; min-height: 68px; font-size: 26px; font-weight: 750; letter-spacing: -.07em; }
+.brand-stamp { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; color: #fff; background: #195950; }
+.brand-stamp i, .address-envelope { position: relative; display: block; overflow: hidden; border: 1.5px solid currentColor; border-radius: 3px; }
+.brand-stamp i { width: 19px; height: 14px; }
+.brand-stamp i::before, .address-envelope::before {
+  content: ''; position: absolute; left: 14%; bottom: 38%; width: 70%; aspect-ratio: 1;
+  border-right: inherit; border-bottom: inherit; border-radius: 0 0 3px; transform: rotate(45deg);
+}
+.inbox-page main { padding-block: 32px 64px; }
+.address-panel {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
+  padding: 25px 32px 24px; border-radius: 15px; background: #183f38; color: #f6f9ef;
+}
+.address-content { position: relative; z-index: 1; min-width: 0; }
+.address-panel p, .priority-heading p { margin: 0; }
+.address-label { color: #b9d4c7; font-size: 13px; font-weight: 600; }
+.inbox-address { padding-block: 5px 7px; font-size: clamp(23px, 3.8vw, 34px); font-weight: 550; letter-spacing: -.055em; overflow-wrap: anywhere; }
+.address-hint { color: #bfd1c7; font-size: 12px; line-height: 1.5; }
+.address-envelope {
+  position: absolute; right: 5%; top: 22%; width: 129px; height: 85px;
+  color: #659183; border-width: 2px; border-radius: 8px; transform: rotate(-9deg);
+}
+.priority-section { margin-top: 36px; }
+.priority-heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 17px; }
+.priority-heading h1 { margin: 0; font-size: clamp(27px, 4vw, 36px); line-height: 1.18; font-weight: 650; letter-spacing: -.055em; }
+.priority-heading p { margin-top: 6px; font-size: 14px; color: #556761; }
+.message-count { padding-bottom: 1px; color: #52645d; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.priority-emails { list-style: none; padding: 0; margin: 0; background: #fff; border: 1px solid #d9e1d8; border-radius: 14px; }
+.priority-emails li + li { border-top: 1px solid #e2e7e0; }
+.priority-email { border-radius: 8px; }
+.priority-email summary {
+  list-style: none; cursor: pointer; display: grid; align-items: center;
+  grid-template-columns: 110px minmax(0, 1fr) auto 10px; gap: 20px;
+  padding: 19px 24px; min-height: 81px;
+}
+.priority-email summary::-webkit-details-marker { display: none; }
+.priority-email summary:hover, .priority-email[open] { background: #f6f9f5; }
+.priority-emails li:first-child summary { border-radius: 14px 14px 0 0; }
+.priority-emails li:last-child summary { border-radius: 0 0 14px 14px; }
+.priority-email summary:focus-visible, .inbox-status button:focus-visible { outline: 3px solid #197367; outline-offset: -4px; }
+.priority-tag {
+  display: inline-flex; align-items: center; gap: 7px; justify-self: start; border-radius: 6px;
+  padding: 5px 9px; font-size: 12px; font-weight: 650; line-height: 1.25; white-space: nowrap;
+}
+.priority-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.priority-tag--emergency { background: #fcece9; color: #9c352b; }
+.priority-tag--urgent { background: #fcf0d5; color: #80540b; }
+.email-copy { display: grid; min-width: 0; gap: 4px; }
+.email-subject { font-size: 16px; line-height: 1.4; letter-spacing: -.018em; font-weight: 640; overflow-wrap: anywhere; }
+.email-excerpt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; line-height: 1.5; color: #586861; }
+.email-time { display: grid; gap: 3px; text-align: right; font-size: 12px; line-height: 1.4; color: #586861; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.email-chevron { width: 7px; height: 7px; border-right: 1.5px solid #698079; border-bottom: 1.5px solid #698079; transform: rotate(45deg); }
+.priority-email[open] .email-chevron { transform: rotate(225deg); }
+.priority-email[open] .email-excerpt { display: none; }
+.email-text { margin: 0; padding: 0 64px 20px 154px; line-height: 1.6; font-size: 15px; color: #394e47; white-space: pre-line; overflow-wrap: anywhere; }
+.inbox-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; background: #fff; color: #52645d; border: 1px solid #d9e1d8; border-radius: 12px; font-size: 14px; }
+.priority-emails + .inbox-status { margin-top: 12px; }
+.inbox-status button { border: 1px solid #a9bfb3; background: #f5faf5; color: #24564a; font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 8px 13px; }
+
+@media (max-width: 640px) {
+  .inbox-width { width: calc(100% - 32px); }
+  .wordmark { min-height: 54px; font-size: 23px; }
+  .inbox-page main { padding-block: 18px 40px; }
+  .address-panel { padding: 20px; }
+  .address-envelope { display: none; }
+  .priority-section { margin-top: 26px; }
+  .priority-heading { margin-bottom: 13px; align-items: baseline; }
+  .priority-heading p { font-size: 13px; line-height: 1.5; }
+  .message-count { font-size: 12px; }
+  .priority-email summary { grid-template-columns: 1fr auto 8px; gap: 10px; padding: 16px; }
+  .priority-tag { grid-row: 1; grid-column: 1; }
+  .email-time { grid-row: 1; grid-column: 2; display: inline-flex; gap: 5px; font-size: 11px; }
+  .email-chevron { grid-row: 1; grid-column: 3; justify-self: end; }
+  .email-copy { grid-row: 2; grid-column: 1 / -1; }
+  .email-text { padding: 0 16px 18px; }
+  .inbox-status { padding: 16px; }
+}
