@@ -13,7 +13,6 @@ export class Config {
   readonly jwtSecret = process.env.APP_JWT_SECRET ?? '';
   readonly initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() ?? '';
   readonly initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD ?? '';
-  readonly jevApiKey = process.env.JEV_API_KEY ?? '';
 
   constructor() {
     if (!Number.isInteger(this.port) || this.port < 1 || this.port > 65535

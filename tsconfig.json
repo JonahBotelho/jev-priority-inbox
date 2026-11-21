@@ -5,5 +5,5 @@
     "esModuleInterop": true, "skipLibCheck": true, "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "netlify/functions"]
 }

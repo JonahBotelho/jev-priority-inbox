@@ -5,7 +5,8 @@ import type { Database } from '../infrastructure/Database.js';
 import type { Config } from '../config.js';
 import { JevClassifier, type Classifier } from '../adapters/Providers.js';
 import { PriorityPolicy } from '../domain/PriorityPolicy.js';
-import type { ClassificationInput } from '../../shared/types.js';
+import { jevModel, readClassificationInput } from '../../shared/jev.js';
+import { en } from '../../locales/en.js';
 
 const deriveKey = (password: string, salt: Buffer, length: number) => new Promise<Buffer>((resolve, reject) => {
   scryptCallback(password, salt, length, { N: 32768, r: 8, p: 1, maxmem: 128 * 1024 * 1024 }, (error, key) => {
@@ -39,7 +40,7 @@ export class PortalApi {
         model TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS api_usage_user_time ON api_usage(user_id, created_at);
     `);
-    this.classifier = classifierOverride ?? (config.jevApiKey ? new JevClassifier(config.jevApiKey) : undefined);
+    this.classifier = classifierOverride ?? JevClassifier.fromEnvironment();
     this.router.post('/auth/register', this.register);
     this.router.post('/auth/login', this.login);
     this.router.post('/auth/logout', this.logout);
@@ -109,30 +110,24 @@ export class PortalApi {
 
   private classify = async (request: Request, response: Response) => {
     const user = response.locals.portalUser as PortalUser;
-    const { subject, text, role, timeZone } = request.body ?? {};
-    if (typeof subject !== 'string' || subject.trim().length < 1 || subject.length > 500
-      || typeof text !== 'string' || text.trim().length < 1 || text.length > 10000
-      || (role !== undefined && (typeof role !== 'string' || role.length > 120))
-      || (timeZone !== undefined && typeof timeZone !== 'string')) {
-      response.status(400).json({ error: 'Provide a subject (max 500 characters) and message (max 10,000 characters).' }); return;
+    const input = readClassificationInput(request.body, new Date().toISOString());
+    if (!input) {
+      response.status(400).json({ error: en.invalidClassification }); return;
     }
     const started = Date.now();
     if (!this.classifier) {
       this.recordUsage(user.id, '/v1/classify', 503, Date.now() - started);
-      response.status(503).json({ error: 'Jev classification is not configured. The administrator must set JEV_API_KEY.' }); return;
+      response.status(503).json({ error: en.classifierNotConfigured }); return;
     }
     try {
-      const input: ClassificationInput = { subject: subject.trim(), text: text.trim(), receivedAt: new Date().toISOString(),
-        role: typeof role === 'string' ? role : 'On-call service owner',
-        timeZone: typeof timeZone === 'string' ? timeZone : 'America/Vancouver' };
       const scores = await this.classifier.classify(input, AbortSignal.timeout(10000));
       const decision = new PriorityPolicy().decide(scores);
       const duration = Date.now() - started;
       const id = randomBytes(16).toString('hex');
       this.database.connection.prepare('INSERT INTO classification_results(id,user_id,tier,score,model,created_at) VALUES(?,?,?,?,?,?)')
-        .run(id, user.id, decision.tier, Math.round(decision.score), 'jev-1.14.0', new Date().toISOString());
+        .run(id, user.id, decision.tier, Math.round(decision.score), jevModel, new Date().toISOString());
       this.recordUsage(user.id, '/v1/classify', 200, duration);
-      response.json({ id, tier: decision.tier, score: Math.round(decision.score), provider: 'Jev', model: 'jev-1.14.0', durationMs: duration });
+      response.json({ id, tier: decision.tier, score: Math.round(decision.score), provider: 'Jev', model: jevModel, durationMs: duration });
     } catch {
       this.recordUsage(user.id, '/v1/classify', 502, Date.now() - started);
       response.status(502).json({ error: 'The AI classification service did not return a valid result.' });

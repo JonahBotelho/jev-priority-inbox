@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/
 .env
+.netlify/
 *.log
 test-results/
 playwright-report/

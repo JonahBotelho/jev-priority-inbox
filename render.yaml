@@ -24,7 +24,9 @@ services:
         sync: false
       - key: INITIAL_ADMIN_PASSWORD
         sync: false
-      - key: JEV_API_KEY
+      - key: JEV_FUNCTION_URL
+        sync: false
+      - key: JEV_FUNCTION_SECRET
         sync: false
       - key: PUBLIC_URL
         sync: false

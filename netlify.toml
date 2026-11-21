@@ -1,0 +1,8 @@
+# The client is hosted on Vercel. Netlify only publishes the classification function.
+[build]
+  command = "test -f netlify/functions/jev-classify.ts && mkdir -p dist/netlify-public"
+  publish = "dist/netlify-public"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
