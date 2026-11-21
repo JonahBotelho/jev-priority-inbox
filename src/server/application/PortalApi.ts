@@ -70,8 +70,8 @@ export class PortalApi {
   private register = async (request: Request, response: Response) => {
     const { email: rawEmail, password } = request.body ?? {};
     const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-    if (!emailPattern.test(email) || typeof password !== 'string' || password.length < 12 || password.length > 256) {
-      response.status(400).json({ error: 'Use a valid email and a password between 12 and 256 characters.' }); return;
+    if (!emailPattern.test(email) || typeof password !== 'string' || password.length < 3 || password.length > 256) {
+      response.status(400).json({ error: en.invalidPassword }); return;
     }
     if (this.database.connection.prepare('SELECT 1 FROM app_users WHERE email=?').get(email)) {
       response.status(409).json({ error: 'An account with this email already exists.' }); return;

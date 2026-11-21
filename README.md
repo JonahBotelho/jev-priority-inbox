@@ -7,7 +7,7 @@ Jev Priority Inbox classifies email text by urgency through a protected REST API
 - Node.js 24 or newer
 - A Netlify Function URL and shared secret for live classification (see [Jev setup](#set-up-jev-on-netlify-free))
 - A stable 64-character hexadecimal encryption key and a separate 64-character hexadecimal JWT secret
-- An initial administrator email and a unique password of at least 12 characters
+- An initial administrator email and a password of at least 3 characters
 
 On this Apple Silicon Mac, if `node -v` still returns Node 22 after installing Node 24 with Homebrew, run this in the same terminal before npm commands:
 
@@ -53,9 +53,9 @@ npm run test:browser
 
 ## Deploy as two origins
 
-The repository includes a Render blueprint for the API and Vercel configuration for the client. Deploy the API first, attach its persistent disk, and configure `PUBLIC_URL` to the API HTTPS URL, `CLIENT_ORIGIN` to the client HTTPS URL, plus `APP_JWT_SECRET`, `MAIL_ENCRYPTION_KEY`, `INITIAL_ADMIN_EMAIL`, and `INITIAL_ADMIN_PASSWORD`. Set Vercel’s `VITE_API_URL` to the Render API HTTPS URL and deploy the client. Redeploy the client after changing `VITE_API_URL`, which is embedded at build time. For reliable browser cookie behavior, use two HTTPS subdomains under the same registered domain (for example, `app.example.com` and `api.example.com`).
+The repository includes a Render blueprint ([render.yaml](render.yaml)) for both the API web service and the static client (as well as [vercel.json](vercel.json) if hosting the client on Vercel). Deploy the API first and configure `PUBLIC_URL` to the API HTTPS URL, `CLIENT_ORIGIN` to the client HTTPS URL, plus `APP_JWT_SECRET`, `MAIL_ENCRYPTION_KEY`, `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`, `JEV_FUNCTION_URL`, and `JEV_FUNCTION_SECRET`. Set the client's `VITE_API_URL` to the Render API HTTPS URL and deploy the client. Redeploy the client after changing `VITE_API_URL`, which is embedded at build time. For reliable browser cookie behavior across strict browsers, use two HTTPS subdomains under the same custom domain (for example, `app.example.com` and `api.example.com`).
 
-Keep one API instance for SQLite. Do not put credentials in source control. Create a dedicated regular demo account through registration and share isolated demo credentials with the instructor outside the repository. Set the initial admin credentials privately and share the admin demo login through the course submission channel. Confirm with the instructor/TA that Jev is an approved third-party AI provider before presenting the live endpoint.
+Until an external database (such as Neon PostgreSQL) is connected, Render Free uses ephemeral local SQLite storage (`./data/mail.sqlite`) and keeps one API instance. Do not put credentials in source control. Create a dedicated regular demo account through registration and share isolated demo credentials with the instructor outside the repository. Set the initial admin credentials privately and share the admin demo login through the course submission channel. Confirm with the instructor/TA that Jev is an approved third-party AI provider before presenting the live endpoint.
 
 ### Set up Jev on Netlify Free
 

@@ -8,6 +8,8 @@ export const en = {
   loading: 'Loading…', retry: 'Try again',
   tiers: { Emergency: 'Emergency', Urgent: 'Urgent', Routine: 'Routine' },
   invalidLogin: 'The mailbox password is incorrect.', unauthorized: 'Please sign in.',
+  invalidPassword: 'Use a valid email and a password between 3 and 256 characters.',
+  passwordRequirement: 'Use a password with at least 3 characters.',
   forbidden: 'This request is not allowed.', missing: 'Message unavailable.', invalid: 'Invalid request.',
   unavailable: 'The service is temporarily unavailable.',
   fixtureHelp: 'Choose outage, recovery, signoff, sale, security, database, deployment, certificate, or digest.',

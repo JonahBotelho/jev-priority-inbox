@@ -24,7 +24,10 @@ export function Portal() {
   const [history, setHistory] = useState<ClassificationRecord[]>([]);
 
   useEffect(() => {
-    void InboxApi.request<User>('/auth/me').then(setUser).catch(() => {}).finally(() => setLoading(false));
+    void InboxApi.request<User>('/auth/me')
+      .then(account => { setUser(account); setView(account.role === 'admin' ? 'admin' : 'service'); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -43,6 +46,7 @@ export function Portal() {
         email: fields.get('email'), password: fields.get('password'),
       });
       setUser(signedIn);
+      setView(signedIn.role === 'admin' ? 'admin' : 'service');
     } catch (cause) { setError((cause as Error).message); }
     finally { setBusy(false); }
   }
@@ -63,7 +67,7 @@ export function Portal() {
   }
 
   async function signOut() {
-    await InboxApi.request('/auth/logout', 'POST'); setUser(undefined); setDashboard(undefined); setUsage(undefined);
+    await InboxApi.request('/auth/logout', 'POST'); setUser(undefined); setDashboard(undefined); setUsage(undefined); setView('service');
   }
 
   if (loading) return <main className="portal-loading">{en.loading}</main>;
@@ -75,14 +79,14 @@ export function Portal() {
       <p className="portal-muted">Classify an email’s urgency and review your API usage.</p>
       <form onSubmit={submitAuth} className="portal-form">
         <label>Email<input name="email" type="email" autoComplete="email" required /></label>
-        <label>Password<input name="password" type="password" autoComplete={registering ? 'new-password' : 'current-password'} minLength={12} required /></label>
+        <label>Password<input name="password" type="password" autoComplete={registering ? 'new-password' : 'current-password'} minLength={registering ? 3 : 1} required /></label>
         <button disabled={busy}>{busy ? 'Please wait…' : registering ? 'Create account' : 'Sign in'}</button>
       </form>
       {error && <p className="portal-error" role="alert">{error}</p>}
       <button className="portal-link-button" onClick={() => { setRegistering(!registering); setError(''); }}>
         {registering ? 'Already registered? Sign in' : 'Need an account? Register'}
       </button>
-      <p className="portal-small">Use a password with at least 12 characters.</p>
+      <p className="portal-small">{en.passwordRequirement}</p>
     </section>
   </main>;
 

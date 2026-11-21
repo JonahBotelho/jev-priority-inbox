@@ -55,10 +55,12 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
   });
 
   try {
-    const created = await request('/auth/register', 'POST', { email: 'student@example.test', password: 'a-unique-student-password' });
+    const tooShort = await request('/auth/register', 'POST', { email: 'short@example.test', password: '12' });
+    assert.equal(tooShort.status, 400);
+    const created = await request('/auth/register', 'POST', { email: 'john@john.com', password: '123' });
     assert.equal(created.status, 201);
     const userCookie = created.headers.get('set-cookie')!.split(';')[0];
-    const stored = database.connection.prepare('SELECT password_hash FROM app_users WHERE email=?').get('student@example.test') as { password_hash: string };
+    const stored = database.connection.prepare('SELECT password_hash FROM app_users WHERE email=?').get('john@john.com') as { password_hash: string };
     assert.match(stored.password_hash, /^scrypt\$/);
     assert.equal((await request('/auth/me', 'GET', undefined, userCookie)).status, 200);
     assert.equal((await request('/admin/dashboard', 'GET', undefined, userCookie)).status, 403);
@@ -101,7 +103,7 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.deepEqual([afterFailure.requests, afterFailure.successful], [2, 1]);
     assert.equal((await (await request('/classifications', 'GET', undefined, userCookie)).json()).results.length, 1);
 
-    const badLogin = await request('/auth/login', 'POST', { email: 'student@example.test', password: 'wrong-password-123' });
+    const badLogin = await request('/auth/login', 'POST', { email: 'john@john.com', password: 'wrong-password-123' });
     assert.equal(badLogin.status, 401);
     const adminLogin = await request('/auth/login', 'POST', { email: 'root@example.test', password: 'admin-password-for-tests' });
     assert.equal(adminLogin.status, 200);

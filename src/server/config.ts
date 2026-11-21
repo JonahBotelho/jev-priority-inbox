@@ -19,7 +19,7 @@ export class Config {
       || !/^[a-fA-F0-9]{64}$/.test(this.encryptionKey)
       || !/^[a-fA-F0-9]{64}$/.test(this.jwtSecret)
       || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(this.initialAdminEmail)
-      || this.initialAdminPassword.length < 12
+      || this.initialAdminPassword.length < 3 || this.initialAdminPassword.length > 256
       || !this.validOrigin(this.clientOrigin)) {
       throw new Error(en.config);
     }

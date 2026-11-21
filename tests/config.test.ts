@@ -22,6 +22,12 @@ test('site startup ignores legacy modes and requires account encryption', () => 
       const config = new Config();
       assert.equal(config.databasePath, './data/mail.sqlite');
     }
+    process.env.INITIAL_ADMIN_EMAIL = 'admin@admin.com';
+    process.env.INITIAL_ADMIN_PASSWORD = '111';
+    assert.equal(new Config().initialAdminPassword, '111');
+    process.env.INITIAL_ADMIN_PASSWORD = '11';
+    assert.throws(() => new Config());
+    process.env.INITIAL_ADMIN_PASSWORD = 'test-admin-password-123';
     delete process.env.MAIL_ENCRYPTION_KEY;
     assert.throws(() => new Config());
   } finally {

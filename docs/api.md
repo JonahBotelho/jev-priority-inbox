@@ -7,7 +7,7 @@ JSON endpoints that require authentication use the `app_session` HttpOnly cookie
 
 ### `POST /auth/register`
 
-Create a standard user and sign in. Passwords must be 12–256 characters.
+Create a standard user and sign in. Passwords must be 3–256 characters.
 
 ```json
 { "email": "student@example.test", "password": "a unique test password" }
