@@ -20,7 +20,8 @@ export class MailFixture {
   submitted?: ComposeInput;
   expired = false;
   constructor(publicUrl = 'http://localhost:8000') {
-    delete process.env.JEV_API_KEY;
+    delete process.env.JEV_FUNCTION_URL;
+    delete process.env.JEV_FUNCTION_SECRET;
     process.env.MAIL_ENCRYPTION_KEY = 'ab'.repeat(32);
     process.env.APP_JWT_SECRET = 'cd'.repeat(32);
     process.env.INITIAL_ADMIN_EMAIL = 'admin@example.test';

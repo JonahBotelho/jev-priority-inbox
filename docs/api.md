@@ -27,13 +27,15 @@ Return the signed-in account or revoke its server-side session record and clear 
 
 ### `POST /classify`
 
-Requires a signed-in user and `JEV_API_KEY` on the API server.
+Requires a signed-in user. Render reads `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` from its server environment to invoke the Netlify Function. The browser calls the Render API with its existing session cookie.
 
 ```json
 { "subject": "Production database is unavailable", "text": "Customer requests are failing. Restore database access now." }
 ```
 
 Returns a JSON object with `id`, `tier` (`Emergency`, `Urgent`, or `Routine`), `score`, `provider`, `model`, and `durationMs`. Subject is limited to 500 characters; message text is limited to 10,000. The API does not return provider credentials or raw model probabilities. Successful results are stored without the submitted subject or message text. Each inference attempt, including upstream failures, is recorded in `api_usage`.
+
+Render returns `503` if its function URL or secret is missing or invalid. A failed function call, a gateway error, or invalid probabilities produce `502` and a failed usage record. A secret mismatch between Render and Netlify also results in `502` at the portal.
 
 ## Usage and administration
 

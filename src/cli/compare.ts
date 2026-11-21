@@ -5,11 +5,12 @@ import { JevClassifier } from '../server/adapters/Providers.js';
 import { Fixtures } from '../server/adapters/Fixtures.js';
 import { PriorityPolicy } from '../server/domain/PriorityPolicy.js';
 import { en } from '../locales/en.js';
+import { urgencyRubric } from '../shared/jev.js';
 
 class Comparison {
   static async run(): Promise<void> {
-    if (!process.env.JEV_API_KEY || !process.env.GEMINI_API_KEY) throw new Error(en.comparisonKey);
-    const jev = new JevClassifier(process.env.JEV_API_KEY);
+    const jev = JevClassifier.fromEnvironment();
+    if (!jev || !process.env.GEMINI_API_KEY) throw new Error(en.comparisonKey);
     const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 4000, retryOptions: { attempts: 1 } } });
     const receivedAt = new Date().toISOString();
     for (const name of Fixtures.names) {
@@ -24,7 +25,7 @@ class Comparison {
       started = performance.now();
       try {
         const response = await gemini.models.generateContent({ model: 'gemini-3.1-flash-lite', contents: JSON.stringify(input),
-          config: { systemInstruction: JevClassifier.rubric, responseMimeType: 'application/json',
+          config: { systemInstruction: urgencyRubric, responseMimeType: 'application/json',
             responseJsonSchema: { type: 'object', properties: { tier: { type: 'string', enum: ['Emergency', 'Urgent', 'Routine'] } }, required: ['tier'] } } });
         const result = JSON.parse(response.text ?? '');
         if (!['Emergency', 'Urgent', 'Routine'].includes(result.tier)) throw new Error('Invalid tier');

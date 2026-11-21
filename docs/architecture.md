@@ -7,12 +7,16 @@ flowchart LR
   Auth --> DB[(SQLite on persistent disk)]
   API --> Usage[Usage tracking and admin endpoints]
   Usage --> DB
-  API -->|server-side HTTPS request; key remains in API env| Jev[Jev AI API\nmodel jev-1.14.0]
-  Jev -->|urgency probabilities| API
+  API -->|HTTPS POST with shared bearer secret| Fn[Netlify Function\njev-classify]
+  Fn -->|Netlify runtime credentials| Gateway[Netlify AI Gateway]
+  Gateway -->|pinned model and urgency question| Jev[Jev AI API\nmodel jev-1.14.0]
+  Jev -->|urgency probabilities| Gateway
+  Gateway -->|model response| Fn
+  Fn -->|three validated probabilities| API
   API -->|tier, score, provider, timing| Browser
 ```
 
-The browser and API are deployed independently. Authentication, role checks, API routing, Jev integration, and usage recording are modules in the single Express API service. SQLite persists users, session revocation records, and usage events. Mailbox integration remains an optional prototype feature in that API and is not the account authentication system used by the assignment portal.
+The browser and API are deployed independently. Express handles account authentication, role checks, priority policy, classification history, usage recording, and optional mailbox integration. SQLite persists users, session revocation records, and usage events. Netlify hosts the classification function, which submits the fixed urgency question using its managed gateway credentials. The API forwards the five classification fields and authenticates separately from the user's session.
 
 ## Data model
 
