@@ -19,6 +19,12 @@ export const en = {
   comparisonFailed: 'Decision failed', listening: 'Inbox server listening on port',
   fictionalSender: 'Fictional study sender',
   config: 'Invalid server configuration',
+  databaseUrlRequired: 'Set DATABASE_URL to a PostgreSQL connection string.',
+  databaseUnavailable: 'The inbox database is unavailable.',
+  importUsage: 'Provide the path to a SQLite inbox backup.',
+  missingInboxTable: 'This backup has no inbox messages table.',
+  importResult: (copied: number, existing: number) => `Imported ${copied} inbox records. Already present: ${existing}.`,
+  importFailed: 'The inbox import could not complete. Check the backup file and the PostgreSQL connection.',
   fixtures: {
     outage: { subject: 'Checkout is down', text: 'Payments are failing for every customer right now. As the on-call service owner, please restore checkout immediately.' },
     recovery: { subject: 'Checkout is down', text: 'Payments recovered. No further action needed.' },

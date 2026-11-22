@@ -1,13 +1,13 @@
-// Transactional intake, job claims, decisions, and mailbox-scoped reads.
+// SQLite support for the original offline study and older data files.
 import { randomUUID } from 'node:crypto';
 import type { Card, Probabilities, Snapshot, Tier } from '../../shared/types.js';
 import { Database } from './Database.js';
 import { MessagePreview } from '../application/MessagePreview.js';
 import { StudySchema } from './StudySchema.js';
+import type { Job, PriorityQueue } from './PriorityQueue.js';
+export type { Job } from './PriorityQueue.js';
 
-export interface Job { id: string; mailbox: string; provider_id: string; received_at: string; attempts: number }
-
-export class InboxRepository {
+export class InboxRepository implements PriorityQueue {
   constructor(readonly database: Database) { StudySchema.migrate(database); }
 
   accept(mailbox: string, providerId: string, receivedAt: string): boolean {
@@ -38,7 +38,8 @@ export class InboxRepository {
     });
   }
 
-  complete(id: string, subject: string, probabilities: Probabilities | null, tier: Tier, score: number, text?: string): void {
+  complete(job: Job | string, subject: string, probabilities: Probabilities | null, tier: Tier, score: number, text?: string): void {
+    const id = typeof job === 'string' ? job : job.id;
     this.database.transaction(() => {
       this.database.connection.prepare(`UPDATE messages SET subject=?, probabilities=?, tier=?, score=?, preview=?, status='complete' WHERE id=?`)
         .run(subject, probabilities ? JSON.stringify(probabilities) : null, tier, score,

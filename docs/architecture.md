@@ -3,8 +3,8 @@
 ```mermaid
 flowchart LR
   Resend[Resend receiving] -->|signed delivery| API[Public Render API]
-  API -->|unique email ID| SQLite[(SQLite)]
-  SQLite -->|pending job| Worker[Render classification worker]
+  API -->|unique email ID| DB[(Neon PostgreSQL)]
+  DB -->|pending job| Worker[Render classification worker]
   Worker -->|retrieve received email| Resend
   Samples[Fictional sample provider] -->|sample mode| Worker
   Worker -->|subject, text, arrival, role, time zone| Fn[Authenticated Netlify Function]
@@ -13,9 +13,9 @@ flowchart LR
   Jev -->|urgency probabilities| Gateway
   Gateway --> Fn
   Fn --> Worker
-  Worker -->|validated decision| SQLite
+  Worker -->|validated decision| DB
   Browser[Render static client] -->|GET /v1/priority| API
-  API -->|read demo mailbox| SQLite
+  API -->|read current mailbox| DB
   API -->|priority cards and review status| Browser
 ```
 
@@ -23,4 +23,6 @@ In sample mode the mailbox namespace includes a digest of the pinned model, rubr
 
 The priority policy admits an email when Emergency plus Urgent probability is at least 0.80. An admitted email is Emergency at an Emergency probability of at least 0.75. Other admitted emails are Urgent. The public read path uses the model's stored tier and excludes records without probabilities.
 
-The browser reads one public inbox. Existing private accounts and study records stay in their original namespaces. The API keeps Resend and Jev credentials on the server.
+The database enforces uniqueness on the mailbox and provider ID. Workers claim rows atomically with `FOR UPDATE SKIP LOCKED`. A worker that crashes leaves a one-minute lease. After it expires, another worker can claim the job. Only the current claim can commit a result. A committed decision survives a redeploy. An interrupted external inference can be repeated if its result never reached PostgreSQL.
+
+The browser reads one public inbox. The Render API keeps the Neon connection string and both providers' credentials on the server.

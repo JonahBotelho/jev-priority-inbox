@@ -3,12 +3,12 @@ import { createHash } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { jevModel, urgencyRubric } from '../../shared/jev.js';
+import { en } from '../../locales/en.js';
 import type { PublicInboxSnapshot } from '../../shared/types.js';
 import { Fixtures } from '../adapters/Fixtures.js';
 import { type Classifier, DemoMailbox } from '../adapters/Providers.js';
 import type { ResendMailbox } from '../adapters/ResendMailbox.js';
-import type { Database } from '../infrastructure/Database.js';
-import { InboxRepository } from '../infrastructure/InboxRepository.js';
+import type { PostgresInbox } from '../infrastructure/PostgresInbox.js';
 import { ChangeEvents } from './ChangeEvents.js';
 import { Worker } from './Worker.js';
 
@@ -22,41 +22,53 @@ const revision = createHash('sha256').update(JSON.stringify([jevModel, urgencyRu
 const publicMailbox = `public-demo/${revision}`;
 
 export class PublicPriorityInbox {
-  private readonly repository: InboxRepository;
   private readonly worker?: Worker;
   private readonly mailbox: string;
   private readonly arrivals = new EventEmitter();
+  private deliveryVersion = 0;
 
-  constructor(database: Database, classifier: Classifier | undefined, readonly receiving?: ResendMailbox) {
-    this.repository = new InboxRepository(database);
+  private constructor(private readonly repository: PostgresInbox, classifier?: Classifier, readonly receiving?: ResendMailbox) {
     this.mailbox = receiving ? `resend/${receiving.address}` : publicMailbox;
-    if (!receiving) {
-      for (const delivery of deliveries) this.repository.accept(this.mailbox, delivery.name, delivery.receivedAt);
-    }
     if (classifier) {
-      this.repository.recover(this.mailbox);
-      this.repository.retryFailed(this.mailbox);
       this.worker = new Worker(this.repository, receiving ?? new DemoMailbox(), classifier, new ChangeEvents(),
         recipient, receiving ? 'verified-deliveries' : 'samples');
     }
   }
 
-  snapshot(): PublicInboxSnapshot {
-    return { ...this.repository.snapshot(this.mailbox, 'model-only'), reviewAvailable: Boolean(this.worker),
+  static async open(repository: PostgresInbox, classifier?: Classifier, receiving?: ResendMailbox): Promise<PublicPriorityInbox> {
+    const inbox = new PublicPriorityInbox(repository, classifier, receiving);
+    if (!receiving) {
+      for (const delivery of deliveries) await repository.accept(inbox.mailbox, delivery.name, delivery.receivedAt);
+    }
+    if (classifier) await repository.retryFailed(inbox.mailbox);
+    return inbox;
+  }
+
+  async snapshot(): Promise<PublicInboxSnapshot> {
+    return { ...await this.repository.snapshot(this.mailbox), reviewAvailable: Boolean(this.worker),
       ...(this.receiving && { receivingAddress: this.receiving.address }) };
   }
 
-  acceptDelivery(id: string, receivedAt: string): void {
+  async acceptDelivery(id: string, receivedAt: string): Promise<void> {
     if (!this.receiving) throw new Error('Receiving is not configured');
-    if (this.repository.accept(this.mailbox, id, receivedAt)) this.arrivals.emit('delivery');
+    await this.repository.accept(this.mailbox, id, receivedAt);
+    this.deliveryVersion++;
+    this.arrivals.emit('delivery');
   }
 
   async run(signal: AbortSignal): Promise<void> {
     while (!signal.aborted) {
-      await this.reviewPending(signal);
+      const version = this.deliveryVersion;
+      try {
+        await this.reviewPending(signal);
+      } catch {
+        console.error(en.databaseUnavailable);
+        await delay(5000, undefined, { signal }).catch(() => {});
+        continue;
+      }
       if (!this.receiving || !this.worker || signal.aborted) return;
-      // Recheck the durable queue before installing the listener in the same event-loop turn.
-      if (this.repository.processing(this.mailbox).pending) continue;
+      // A delivery may commit while the last asynchronous queue read is in flight.
+      if (version !== this.deliveryVersion) continue;
       try { await once(this.arrivals, 'delivery', { signal }); }
       catch (error) { if (!signal.aborted) throw error; }
     }
@@ -66,9 +78,9 @@ export class PublicPriorityInbox {
     if (!this.worker) return;
     while (!signal.aborted) {
       if (await this.worker.tick(this.mailbox)) continue;
-      if (this.repository.processing(this.mailbox).pending === 0) return;
-      // A transient failure has a scheduled retry. Reads never trigger another inference.
-      await delay(1000);
+      if (!await this.repository.hasPending(this.mailbox)) return;
+      // A delayed retry or another worker's claim will become eligible without a new webhook.
+      await delay(1000, undefined, { signal }).catch(() => {});
     }
   }
 }

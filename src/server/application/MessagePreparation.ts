@@ -3,7 +3,8 @@ import { Fixtures } from '../adapters/Fixtures.js';
 
 export class MessagePreparation {
   clean(text: string): string {
-    return text.split(/\r?\n/).filter(line => !line.trimStart().startsWith('>'))
+    // PostgreSQL text cannot contain a NUL, even when a received message includes one.
+    return text.replaceAll('\0', '').split(/\r?\n/).filter(line => !line.trimStart().startsWith('>'))
       .join('\n').split(/\n(?:On .+wrote:|--\s*$|From:|Sent:)/m)[0]
       .replace(/<[^>]*>/g, '').replace(/https?:\/\/\S+/g, '')
       .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '').trim();
