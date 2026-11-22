@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import classifyOnNetlify from '../netlify/functions/jev-classify.js';
 import { jevModel, urgencyRubric } from '../src/shared/jev.js';
+import type { PortalUsage } from '../src/shared/portal.js';
 
 process.env.APP_JWT_SECRET = '22'.repeat(32);
 process.env.INITIAL_ADMIN_EMAIL = 'root@example.test';
@@ -80,7 +81,13 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
       receivedAt: 'yesterday', model: 'other', privateField: 'omit' };
     assert.equal((await request('/classify', 'POST', message)).status, 401);
     assert.equal((await request('/classify', 'POST', {}, userCookie)).status, 400);
-    assert.equal((await (await request('/usage/me', 'GET', undefined, userCookie)).json()).requests, 0);
+    const initialUsage = await (await request('/usage/me', 'GET', undefined, userCookie)).json();
+    assert.equal(initialUsage.requests, 0);
+    assert.equal(initialUsage.netlifyCreditBalance, null);
+    const checkedAt = '2026-11-10T12:30:00.000Z';
+    await database.pool.query('INSERT INTO netlify_credit_checks (remaining_credits,checked_at) VALUES ($1,$2)', ['17.6250', checkedAt]);
+    // Backfilling an older observation must not replace the latest verified balance.
+    await database.pool.query("INSERT INTO netlify_credit_checks VALUES ('2026-11-01T12:30:00Z', 90)");
     assert.equal(outbound.length, 0);
     const classified = await request('/classify', 'POST', message, userCookie);
     assert.equal(classified.status, 200);
@@ -102,8 +109,11 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.deepEqual(inference.questions, { urgency: { type: 'choice', instructions: urgencyRubric,
       criteria: { Emergency: null, Urgent: null, Routine: null } } });
     const usage = await request('/usage/me', 'GET', undefined, userCookie);
-    const summary = await usage.json() as { requests: number; successful: number; lastRequest: string };
+    const summary = await usage.json() as PortalUsage;
     assert.equal(summary.requests, 1); assert.equal(summary.successful, 1); assert.ok(summary.lastRequest);
+    assert.ok(summary.netlifyCreditBalance);
+    assert.equal(summary.netlifyCreditBalance.remaining, '17.625');
+    assert.equal(new Date(summary.netlifyCreditBalance.checkedAt).toISOString(), checkedAt);
     const history = await request('/classifications', 'GET', undefined, userCookie);
     const records = await history.json() as { results: Array<{ tier: string; score: number }> };
     assert.deepEqual(records.results.map(record => [record.tier, record.score]), [['Emergency', 85]]);
@@ -120,8 +130,14 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
       request('/auth/register', 'POST', { email, password: 'other-password' })));
     assert.deepEqual(duplicates.map(res => res.status).sort(), [201,409]);
     const otherCookie = duplicates.find(res => res.status === 201)!.headers.get('set-cookie')!.split(';')[0];
-    assert.equal((await (await request('/usage/me', 'GET', undefined, otherCookie)).json()).requests, 0);
+    const otherUsage = await (await request('/usage/me', 'GET', undefined, otherCookie)).json();
+    assert.equal(otherUsage.requests, 0);
+    assert.deepEqual(otherUsage.netlifyCreditBalance, summary.netlifyCreditBalance);
     assert.deepEqual((await (await request('/classifications', 'GET', undefined, otherCookie)).json()).results, []);
+    await database.pool.query("INSERT INTO netlify_credit_checks VALUES ('2026-11-11T12:30:00Z', 0)");
+    const latestUsage = await (await request('/usage/me', 'GET', undefined, userCookie)).json();
+    assert.equal(latestUsage.netlifyCreditBalance.remaining, '0');
+    assert.equal(latestUsage.requests, 2);
 
     const badLogin = await request('/auth/login', 'POST', { email: 'member@example.test', password: 'wrong-password-123' });
     assert.equal(badLogin.status, 401);

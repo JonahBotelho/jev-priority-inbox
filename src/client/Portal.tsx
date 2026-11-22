@@ -9,6 +9,9 @@ import './portal.css';
 
 const home = (user: PortalUser) => user.role === 'admin' ? '/admin' : '/app';
 const timestamp = (value: string) => new Date(value).toLocaleString();
+const creditCheckTime = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+});
 const status = (error: unknown) => (error as { status?: number })?.status;
 function errorText(error: unknown): string {
   return error instanceof Error && !(error instanceof TypeError) ? error.message : en.unavailable;
@@ -139,6 +142,15 @@ function Classifier() {
       {usage ? <><strong>{usage.requests}</strong><span>{labels.requests}</span><p>{labels.successful(usage.successful)}</p>
         <small>{usage.lastRequest ? labels.lastRequest(timestamp(usage.lastRequest)) : labels.noRequests}</small></> : !readError && en.loading}
       {readError && <div role="alert">{readError} <button className="portal-secondary" onClick={() => refresh(n => n + 1)}>{en.retry}</button></div>}
+      {usage && <section className="portal-credit-balance" aria-labelledby="netlify-credit-heading">
+        <h3 id="netlify-credit-heading">{labels.netlifyCredits}</h3>
+        {usage.netlifyCreditBalance ? <>
+          <p className="portal-credit-value">{usage.netlifyCreditBalance.remaining}</p>
+          <small>{labels.manuallyChecked}<br />
+            <time dateTime={usage.netlifyCreditBalance.checkedAt}>{creditCheckTime.format(new Date(usage.netlifyCreditBalance.checkedAt))}</time>
+          </small>
+        </> : <small>{labels.noCreditCheck}</small>}
+      </section>}
     </aside></div>
     <section className="portal-card portal-history"><h2>{labels.history}</h2>
       {history.length > 0 ? <div className="portal-table-wrap"><table><thead><tr>

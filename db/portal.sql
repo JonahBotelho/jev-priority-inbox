@@ -35,3 +35,9 @@ CREATE TABLE IF NOT EXISTS api_usage (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS api_usage_user_time ON api_usage (user_id, created_at DESC);
+
+-- A maintainer records the balance from the team's Netlify billing dashboard at the time of observation.
+CREATE TABLE IF NOT EXISTS netlify_credit_checks (
+  checked_at timestamptz PRIMARY KEY DEFAULT now() CHECK (isfinite(checked_at)),
+  remaining_credits numeric NOT NULL CHECK (remaining_credits >= 0 AND remaining_credits < 'Infinity'::numeric)
+);

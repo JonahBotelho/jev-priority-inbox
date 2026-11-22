@@ -7,6 +7,8 @@ export const portalText = {
   user: 'User', accounts: 'Registered users', service: 'Classifier', subject: 'Subject', message: 'Message',
   classify: 'Classify priority', classifying: 'Classifying…', usage: 'Your API usage', requests: 'classification requests',
   successful: (count: number) => `${count} successful`, lastRequest: (when: string) => `Last request · ${when}`,
+  netlifyCredits: 'Netlify team credits remaining', manuallyChecked: 'Last checked manually',
+  noCreditCheck: 'No verified balance yet.',
   noRequests: 'No requests yet', history: 'Recent classifications', emptyHistory: 'Your classifications will appear here.',
   priority: 'Priority', score: 'Score', model: 'Model', time: 'Time', role: 'Role', joined: 'Joined', requestCount: 'Requests',
   result: (score: number, model: string, ms: number) => `Score ${score} · ${model} · ${ms} ms`,

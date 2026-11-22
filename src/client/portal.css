@@ -34,6 +34,10 @@
 .portal-usage strong { font-size: 34px; color: #195950; }
 .portal-usage span { color: #52665e; font-size: 13px; }
 .portal-usage p,.portal-usage small { margin: 0; color: #52665e; }
+.portal-credit-balance { display: grid; gap: 6px; width: 100%; margin-top: 8px; padding-top: 16px; border-top: 1px solid #dbe3db; }
+.portal-credit-balance h3 { margin: 0; font-size: 14px; color: #172c2a; }
+.portal-usage .portal-credit-value { font-size: 24px; font-weight: 700; color: #195950; font-variant-numeric: tabular-nums; }
+.portal-credit-balance small { line-height: 1.5; }
 .portal-result { margin-top: 20px; padding: 16px; border-radius: 8px; background: #f0f2f6; color: #48546a; }
 .portal-result h2 { margin: 0 0 5px; font-size: 23px; }
 .portal-result p:last-child { margin-bottom: 0; }
