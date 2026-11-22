@@ -42,6 +42,21 @@ test('the list updates when Jev finishes reviewing samples', async ({ page }) =>
   await expect(page.locator('.priority-email')).toHaveCount(2);
 });
 
+test('live mode shows the real address and discovers newly reviewed mail in an initially idle inbox', async ({ page }) => {
+  await page.clock.install();
+  let arrived = false;
+  await page.route('**/v1/priority', route => route.fulfill({ json: { ...reviewed, receivingAddress: labels.receivingAddress,
+    cards: arrived ? [reviewed.cards[1]] : [] } }));
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: labels.receivingAddress })).toHaveAttribute('href', 'mailto:' + labels.receivingAddress);
+  await expect(page.getByText(labels.receivingHint)).toBeVisible();
+  await expect(page.getByRole('status')).toHaveText(labels.empty);
+  arrived = true;
+  await page.clock.fastForward(31000);
+  await expect(page.locator('.email-subject')).toHaveText([en.fixtures.signoff.subject]);
+  await expect(page.locator('.priority-tag')).toHaveText(['Urgent']);
+});
+
 test('a failed request can be retried and a finished empty inbox is distinct from a failure', async ({ page }) => {
   let healthy = false;
   await page.route('**/v1/priority', route => healthy

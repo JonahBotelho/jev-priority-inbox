@@ -1,6 +1,6 @@
 # Public inbox API
 
-The demo serves read-only JSON under `/v1`. The client sends ordinary cross-origin GET requests without cookies. The public server mounts the following two routes.
+The browser reads JSON under `/v1` without cookies. Resend submits signed delivery events to a separate POST endpoint.
 
 ## GET /v1/health
 
@@ -26,4 +26,10 @@ Returns an inbox snapshot. Each card has a stable ID, a confirmed tier, a subjec
 
 Emergency comes first, then Urgent. Within a tier the API orders by descending priority score, then newer arrival time and stable ID. Only completed decisions with stored Jev probabilities for this demo mailbox qualify. Pending, failed, and Routine messages have no priority card.
 
-`pending` includes in-flight reviews. The browser refreshes while work is pending and `reviewAvailable` is true. Previously saved decisions can be read even when the relay is unconfigured. Failed samples become eligible for a new review when the configured API restarts. Reading the list incurs no inference calls.
+`pending` includes in-flight reviews. When Resend is active, the snapshot includes `receivingAddress` and only that mailbox's decisions. An open, visible live inbox refreshes every 30 seconds when idle and every 1.5 seconds during review. Returning to the tab refreshes it immediately. Failed deliveries become eligible for a new review when the configured API restarts. Reads incur no inference calls.
+
+## POST /v1/inbound
+
+Resend sends an `email.received` event as raw JSON with the `svix-id`, `svix-timestamp`, and `svix-signature` headers. Render verifies the signature and timestamp, checks the SMTP envelope's `received_for` list, and commits the provider email ID and arrival time to SQLite before responding. A duplicate ID is acknowledged without adding another job.
+
+The route returns `200` for an accepted delivery, a duplicate, or an unrelated signed event. It returns `401` for failed verification, `400` for invalid delivery metadata, `415` for an unsupported body type, and `503` until Resend is configured. A `200` acknowledges receipt. Jev classification completes asynchronously.

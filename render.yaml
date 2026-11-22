@@ -17,6 +17,10 @@ services:
         sync: false
       - key: JEV_FUNCTION_SECRET
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
 
   - type: web
     name: jev-priority-inbox-client
