@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Fixtures } from '../src/server/adapters/Fixtures.js';
 import type { Classifier } from '../src/server/adapters/Providers.js';
 import { PublicPriorityInbox } from '../src/server/application/PublicPriorityInbox.js';
+import { PortalApi } from '../src/server/application/PortalApi.js';
 import { createPublicInboxApi } from '../src/server/http/PublicInboxApi.js';
 import { createTestStore } from './postgres-fixture.js';
 
@@ -61,7 +62,8 @@ test('the public endpoint needs no account, credentials or Jev key to read its r
   await database.accept('other', 'secret-message', '2026-11-20T09:30:00Z');
   const privateJob = (await database.claim('other'))!;
   await database.complete(privateJob, 'Private email', { Emergency: 1, Urgent: 0, Routine: 0 }, 'Emergency', 100);
-  const server = createPublicInboxApi(inbox).listen(0, '127.0.0.1');
+  const portal = await PortalApi.open(database, undefined, { PUBLIC_URL: 'http://localhost:8000' });
+  const server = createPublicInboxApi(inbox, portal).listen(0, '127.0.0.1');
   t.after(async () => {
     await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
     await database.pool.end();
@@ -76,9 +78,12 @@ test('the public endpoint needs no account, credentials or Jev key to read its r
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
   assert.equal(response.headers.get('set-cookie'), null);
   assert.deepEqual(await response.json(), { cards: [], processing: { pending: Fixtures.names.length, failed: 0 }, reviewAvailable: false });
-  for (const path of ['/auth/me', '/admin/dashboard', '/account', '/messages/private']) {
+  for (const path of ['/auth/me', '/admin/dashboard', '/usage/me', '/classifications']) {
+    assert.equal((await fetch(base + path)).status, 401);
+  }
+  for (const path of ['/account', '/messages/private']) {
     assert.equal((await fetch(base + path)).status, 404);
   }
-  assert.equal((await fetch(base + '/classify', { method: 'POST' })).status, 404);
+  assert.equal((await fetch(base + '/classify', { method: 'POST' })).status, 401);
   assert.equal((await fetch(base + '/inbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503);
 });

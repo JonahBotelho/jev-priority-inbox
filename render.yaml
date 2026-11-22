@@ -13,6 +13,12 @@ services:
         value: "24"
       - key: DATABASE_URL
         sync: false
+      - key: CLIENT_ORIGIN
+        value: https://jev-priority-inbox-client.onrender.com
+      - key: INITIAL_ADMIN_EMAIL
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
       - key: JEV_FUNCTION_URL
         sync: false
       - key: JEV_FUNCTION_SECRET

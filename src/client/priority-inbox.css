@@ -11,6 +11,7 @@ body { margin: 0; }
 .inbox-width { width: min(100% - 64px, 1024px); margin-inline: auto; }
 .inbox-masthead { background: #fff; border-bottom: 1px solid #dfe5de; }
 .wordmark { display: flex; align-items: center; gap: 10px; min-height: 68px; font-size: 26px; font-weight: 750; letter-spacing: -.07em; }
+.inbox-portal-link { margin-left: auto; color: #24564a; font-size: 14px; font-weight: 600; letter-spacing: normal; text-underline-offset: 3px; }
 .brand-stamp { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; color: #fff; background: #195950; }
 .brand-stamp i, .address-envelope { position: relative; display: block; overflow: hidden; border: 1.5px solid currentColor; border-radius: 3px; }
 .brand-stamp i { width: 19px; height: 14px; }

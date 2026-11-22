@@ -1,12 +1,10 @@
 // Portal API contract: own-account login, protected role routes, inference and usage persistence.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import express from 'express';
 import type { Server } from 'node:http';
 import classifyOnNetlify from '../netlify/functions/jev-classify.js';
 import { jevModel, urgencyRubric } from '../src/shared/jev.js';
 
-process.env.MAIL_ENCRYPTION_KEY = '11'.repeat(32);
 process.env.APP_JWT_SECRET = '22'.repeat(32);
 process.env.INITIAL_ADMIN_EMAIL = 'root@example.test';
 process.env.INITIAL_ADMIN_PASSWORD = 'admin-password-for-tests';
@@ -15,8 +13,10 @@ process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5173';
 const functionUrl = 'https://function.example.test/.netlify/functions/jev-classify';
 const gatewayBase = 'https://gateway.example.test/typesafe';
 
-import { Config } from '../src/server/config.js';
-import { Database } from '../src/server/infrastructure/Database.js';
+import { createTestStore } from './postgres-fixture.js';
+import { createPublicInboxApi } from '../src/server/http/PublicInboxApi.js';
+import { PublicPriorityInbox } from '../src/server/application/PublicPriorityInbox.js';
+import { JevClassifier } from '../src/server/adapters/Providers.js';
 import { PortalApi } from '../src/server/application/PortalApi.js';
 
 test('registration, login, JWT revocation, role authorization, Netlify classification and usage work', async t => {
@@ -39,11 +39,10 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
       usage: { input_tokens: 150, output_tokens: 10 },
     });
   });
-  const database = new Database(':memory:');
-  const config = new Config();
-  const portal = new PortalApi(database, config);
-  await portal.bootstrapAdmin();
-  const app = express(); app.use(express.json()); app.use('/v1', portal.router);
+  const database = await createTestStore();
+  const portal = await PortalApi.open(database, JevClassifier.fromEnvironment());
+  const inbox = await PublicPriorityInbox.open(database);
+  const app = createPublicInboxApi(inbox, portal);
   const server: Server = app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const address = server.address();
@@ -55,12 +54,24 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
   });
 
   try {
+    const origin = process.env.CLIENT_ORIGIN!;
+    const preflight = await portalFetch(base + '/auth/login', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+    assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal((await portalFetch(base + '/auth/me', { headers: { Origin: 'https://other.example' } })).status, 403);
+    const publicRead = await portalFetch(base + '/priority', { headers: { Origin: 'https://other.example' } });
+    assert.equal(publicRead.status, 200);
+    assert.equal(publicRead.headers.get('access-control-allow-origin'), '*');
+    assert.equal((await request('/admin/dashboard')).status, 401);
     const tooShort = await request('/auth/register', 'POST', { email: 'short@example.test', password: '12' });
     assert.equal(tooShort.status, 400);
-    const created = await request('/auth/register', 'POST', { email: 'john@john.com', password: '123' });
+    const created = await request('/auth/register', 'POST', { email: 'Member@example.test', password: '123', role: 'admin' });
     assert.equal(created.status, 201);
     const userCookie = created.headers.get('set-cookie')!.split(';')[0];
-    const stored = database.connection.prepare('SELECT password_hash FROM app_users WHERE email=?').get('john@john.com') as { password_hash: string };
+    assert.equal((await created.json()).role, 'user');
+    assert.match(created.headers.get('set-cookie')!, /HttpOnly/);
+    const { rows: [stored] } = await database.pool.query('SELECT password_hash FROM app_users WHERE email=$1', ['member@example.test']);
     assert.match(stored.password_hash, /^scrypt\$/);
     assert.equal((await request('/auth/me', 'GET', undefined, userCookie)).status, 200);
     assert.equal((await request('/admin/dashboard', 'GET', undefined, userCookie)).status, 403);
@@ -68,6 +79,8 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     const message = { subject: 'Outage', text: 'Customers cannot pay. '.repeat(75).trim(),
       receivedAt: 'yesterday', model: 'other', privateField: 'omit' };
     assert.equal((await request('/classify', 'POST', message)).status, 401);
+    assert.equal((await request('/classify', 'POST', {}, userCookie)).status, 400);
+    assert.equal((await (await request('/usage/me', 'GET', undefined, userCookie)).json()).requests, 0);
     assert.equal(outbound.length, 0);
     const classified = await request('/classify', 'POST', message, userCookie);
     assert.equal(classified.status, 200);
@@ -103,20 +116,62 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.deepEqual([afterFailure.requests, afterFailure.successful], [2, 1]);
     assert.equal((await (await request('/classifications', 'GET', undefined, userCookie)).json()).results.length, 1);
 
-    const badLogin = await request('/auth/login', 'POST', { email: 'john@john.com', password: 'wrong-password-123' });
+    const duplicates = await Promise.all(['other@example.test', 'OTHER@example.test'].map(email =>
+      request('/auth/register', 'POST', { email, password: 'other-password' })));
+    assert.deepEqual(duplicates.map(res => res.status).sort(), [201,409]);
+    const otherCookie = duplicates.find(res => res.status === 201)!.headers.get('set-cookie')!.split(';')[0];
+    assert.equal((await (await request('/usage/me', 'GET', undefined, otherCookie)).json()).requests, 0);
+    assert.deepEqual((await (await request('/classifications', 'GET', undefined, otherCookie)).json()).results, []);
+
+    const badLogin = await request('/auth/login', 'POST', { email: 'member@example.test', password: 'wrong-password-123' });
     assert.equal(badLogin.status, 401);
     const adminLogin = await request('/auth/login', 'POST', { email: 'root@example.test', password: 'admin-password-for-tests' });
     assert.equal(adminLogin.status, 200);
     const adminCookie = adminLogin.headers.get('set-cookie')!.split(';')[0];
     const dashboard = await request('/admin/dashboard', 'GET', undefined, adminCookie);
     assert.equal(dashboard.status, 200);
-    assert.equal((await dashboard.json() as { users: unknown[] }).users.length, 2);
+    const { users } = await dashboard.json();
+    assert.equal(users.length, 3);
+    assert.equal(users.find((user: {email: string}) => user.email === 'member@example.test').requests, 2);
+    assert.deepEqual(Object.keys(users[0]).sort(), ['id','email','role','createdAt','requests'].sort());
     const selfDemotion = await request('/admin/users/' + (await adminLogin.json() as { id: string }).id, 'PATCH', { role: 'user' }, adminCookie);
-    assert.equal(selfDemotion.status, 409);
+    assert.equal(selfDemotion.status, 404); // The live administrator list is read-only.
 
     assert.equal((await request('/auth/logout', 'POST', {}, userCookie)).status, 204);
     assert.equal((await request('/auth/me', 'GET', undefined, userCookie)).status, 401);
   } finally {
-    server.close(); server.closeAllConnections(); database.connection.close();
+    server.close(); server.closeAllConnections(); await database.pool.end();
   }
+});
+
+test('concurrent portal instances reuse the Neon signing key and check session expiration in PostgreSQL', async t => {
+  const db = await createTestStore();
+  const inbox = await PublicPriorityInbox.open(db);
+  const env = { PUBLIC_URL: 'https://api.example.test', CLIENT_ORIGIN: 'https://client.example.test/',
+    INITIAL_ADMIN_EMAIL: 'seed@example.test', INITIAL_ADMIN_PASSWORD: 'initial-password' };
+  const portals = await Promise.all([PortalApi.open(db, undefined, env), PortalApi.open(db, undefined, env)]);
+  const servers = portals.map(portal => createPublicInboxApi(inbox, portal).listen(0, '127.0.0.1'));
+  t.after(async () => {
+    await Promise.all(servers.map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); })));
+    await db.pool.end();
+  });
+  await Promise.all(servers.map(server => new Promise<void>(resolve => server.once('listening', resolve))));
+  const [first, second] = servers.map(server => {
+    const address = server.address(); assert.ok(address && typeof address !== 'string');
+    return 'http://127.0.0.1:' + address.port + '/v1';
+  });
+  const registration = (email: string) => fetch(first + '/auth/register', { method: 'POST',
+    headers: { Origin: 'https://client.example.test', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: 'isolated-password' }) });
+  assert.equal((await registration('SEED@example.test')).status, 409);
+  const created = await registration('shared@example.test'); assert.equal(created.status, 201);
+  const setCookie = created.headers.get('set-cookie')!;
+  for (const flag of ['HttpOnly','Secure','SameSite=None','Partitioned']) assert.ok(setCookie.includes(flag));
+  const headers = { Cookie: setCookie.split(';')[0], Origin: 'https://client.example.test' };
+  assert.equal((await fetch(second + '/auth/me', {headers})).status, 200);
+  const id = (await created.json()).id;
+  await db.pool.query("UPDATE app_sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1", [id]);
+  assert.equal((await fetch(first + '/auth/me', {headers})).status, 401);
+  assert.equal((await db.pool.query('SELECT count(*)::int AS keys FROM app_portal_signing_key')).rows[0].keys, 1);
+  assert.equal((await db.pool.query("SELECT count(*)::int AS admins FROM app_users WHERE role='admin'")).rows[0].admins, 1);
 });
