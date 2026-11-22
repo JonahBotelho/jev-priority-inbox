@@ -2,6 +2,12 @@
 
 The [public inbox](https://jev-priority-inbox-client.onrender.com/) shows Emergency and Urgent emails reviewed by Jev. The same reader displays fictional samples by default and real deliveries to `priority@ionooambea.resend.app` when Resend is configured. The address panel identifies the active source. Expand a row to read its preview.
 
+## Account portal
+
+Open **Account portal** from the public inbox to [sign in](https://jev-priority-inbox-client.onrender.com/login) or [register](https://jev-priority-inbox-client.onrender.com/register). [My classifier](https://jev-priority-inbox-client.onrender.com/app) accepts an email subject and message and displays Jev’s decision, personal classification history and API usage. A valid submission counts once, including a provider failure. The portal saves the result and duration without saving the submitted email text. [Registered users](https://jev-priority-inbox-client.onrender.com/admin) is an administrator-only, read-only directory.
+
+Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` together on the API service to create the initial administrator. Use an unused address. Restarts preserve existing accounts and passwords. Public registrations always receive the user role. For another frontend host, set `CLIENT_ORIGIN` to its exact origin. An existing `APP_JWT_SECRET` of at least 32 bytes is supported. Otherwise the API creates a private random signing key in Neon so sessions survive redeploys. Keep credentials and signing keys out of submissions.
+
 ## Run locally
 
 Use Node.js 24 or newer and run these commands from the repository root.
@@ -33,7 +39,7 @@ The [Resend adapter](src/server/adapters/ResendMailbox.ts) checks the actual del
 ## Deploy
 
 - **Render API and client.** [render.yaml](render.yaml) configures the Node web service and the static site. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` on the API. On the client, set `VITE_API_URL` to the API origin and redeploy after changing it. The static publish directory is `dist/client`.
-- **Storage.** The public API requires PostgreSQL through the server-only `DATABASE_URL`. [PostgresInbox](src/server/infrastructure/PostgresInbox.ts) persists receipts and decisions across Render redeploys. The archived account and offline study code still reads its local SQLite files.
+- **Storage.** The API uses the server-only `DATABASE_URL` for public inbox receipts and private portal accounts. The [portal schema](db/portal.sql) is applied at startup. The archived connected-mailbox and offline study modules use their own SQLite files.
 - **Netlify Function.** [netlify.toml](netlify.toml) deploys [jev-classify](netlify/functions/jev-classify.ts) from `main` to `isa-term-project`. Set the same `JEV_FUNCTION_SECRET` on the function. Netlify AI Gateway supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL`. Enable AI features, complete a production deploy and allow public access to the production function so Render can reach it. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
 - **Automatic Jev deployments.** The repository owner registers the Netlify SSH public key with read-only access and subscribes the Netlify GitHub webhook to push events with content type `application/json`. [Repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
 - **Verify.** Visit `/v1/health` on the API, then open the client in a fresh browser. The inbox loads without a session. `GET /v1/priority` reports the saved cards and any pending or failed reviews.
@@ -50,5 +56,7 @@ npm run test:browser
 ```
 
 The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [priority inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
+
+The [portal UI](src/client/Portal.tsx) uses [localized copy](src/locales/portal.ts) and a [shared response contract](src/shared/portal.ts). [PortalApi](src/server/application/PortalApi.ts) uses [PortalAuth](src/server/application/PortalAuth.ts) and [PostgresPortal](src/server/infrastructure/PostgresPortal.ts). [Browser tests](tests/browser/portal.spec.ts) use a [loopback Jev stand-in](tests/browser-jev.ts).
 
 The optional `npm run compare` command also requires `GEMINI_API_KEY` for the model comparison. See the [API contract](docs/api.md) and [architecture](docs/architecture.md) for the public demo.

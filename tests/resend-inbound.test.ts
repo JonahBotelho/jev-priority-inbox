@@ -10,6 +10,7 @@ import { priorityInboxText as labels } from '../src/locales/priorityInbox.js';
 import { ResendMailbox } from '../src/server/adapters/ResendMailbox.js';
 import type { Classifier } from '../src/server/adapters/Providers.js';
 import { PublicPriorityInbox } from '../src/server/application/PublicPriorityInbox.js';
+import { PortalApi } from '../src/server/application/PortalApi.js';
 import { createPublicInboxApi } from '../src/server/http/PublicInboxApi.js';
 import { createTestStore } from './postgres-fixture.js';
 
@@ -32,7 +33,8 @@ function signedHeaders(payload: string, timestamp = Math.floor(Date.now() / 1000
 async function openApi(t: TestContext, classifier?: Classifier) {
   const db = await createTestStore();
   const inbox = await PublicPriorityInbox.open(db, classifier, receiver);
-  const server = createPublicInboxApi(inbox).listen(0, '127.0.0.1');
+  const portal = await PortalApi.open(db, undefined, { PUBLIC_URL: 'http://localhost:8000' });
+  const server = createPublicInboxApi(inbox, portal).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/inbound`;
   const send = globalThis.fetch.bind(globalThis);

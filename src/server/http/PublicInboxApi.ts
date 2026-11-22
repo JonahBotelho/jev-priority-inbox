@@ -1,11 +1,13 @@
 // Browser reads and signed provider deliveries share the public inbox service.
 import express from 'express';
 import type { PublicPriorityInbox } from '../application/PublicPriorityInbox.js';
+import type { PortalApi } from '../application/PortalApi.js';
 
-export function createPublicInboxApi(inbox: PublicPriorityInbox) {
+export function createPublicInboxApi(inbox: PublicPriorityInbox, portal?: PortalApi) {
   const app = express();
   app.disable('x-powered-by');
-  app.use('/v1', (_request, response, next) => {
+  if (process.env.RENDER === 'true') app.set('trust proxy', 1);
+  app.use(['/v1/health', '/v1/priority', '/v1/inbound'], (_request, response, next) => {
     response.set({ 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
     next();
   });
@@ -30,5 +32,6 @@ export function createPublicInboxApi(inbox: PublicPriorityInbox) {
     }
     response.sendStatus(event.status);
   });
+  if (portal) app.use('/v1', portal.router);
   return app;
 }

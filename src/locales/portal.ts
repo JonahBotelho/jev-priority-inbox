@@ -1,0 +1,19 @@
+// Visible portal copy and JSON error messages.
+export const portalText = {
+  signIn: 'Sign in', register: 'Create account', signOut: 'Sign out', working: 'Please wait…',
+  loginHeading: 'Sign in to Jev', registerHeading: 'Create your account', email: 'Email', password: 'Password',
+  authHelp: 'Classify an email and see your API usage.', toRegister: 'Create an account', toLogin: 'Already registered? Sign in',
+  portal: 'Account portal', publicInbox: 'Public inbox', classifier: 'Email priority classifier', admin: 'Administrator',
+  user: 'User', accounts: 'Registered users', service: 'Classifier', subject: 'Subject', message: 'Message',
+  classify: 'Classify priority', classifying: 'Classifying…', usage: 'Your API usage', requests: 'classification requests',
+  successful: (count: number) => `${count} successful`, lastRequest: (when: string) => `Last request · ${when}`,
+  noRequests: 'No requests yet', history: 'Recent classifications', emptyHistory: 'Your classifications will appear here.',
+  priority: 'Priority', score: 'Score', model: 'Model', time: 'Time', role: 'Role', joined: 'Joined', requestCount: 'Requests',
+  result: (score: number, model: string, ms: number) => `Score ${score} · ${model} · ${ms} ms`,
+  duplicate: 'An account with this email already exists.', credentials: 'Email or password is incorrect.',
+  attempts: 'Too many login attempts. Try again shortly.', adminRequired: 'Administrator access is required.',
+  providerError: 'Jev could not classify this message. Please try again.',
+  cookieError: 'Your browser could not save the session. Allow cookies for this site and sign in again.',
+  configError: 'Check the portal configuration on the API service.',
+  adminConflict: 'The administrator email already belongs to a regular account. Choose an unused administrator email.',
+};

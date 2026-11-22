@@ -5,7 +5,6 @@ import { MailStore } from '../src/server/mail/MailStore.js';
 import { MailService } from '../src/server/mail/MailService.js';
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 import { ConnectedApplication } from '../src/server/mail/ConnectedApplication.js';
-import { PortalApi } from '../src/server/application/PortalApi.js';
 import type { SendResult, MailDetail, ComposeInput } from '../src/shared/mail.js';
 
 export class MailFixture {
@@ -45,7 +44,7 @@ export class MailFixture {
     this.service.send = async (_account, input, reply) => {
       this.sends++; this.receivedReply = reply; this.submitted = input; return this.result;
     };
-    this.application = new ConnectedApplication(this.config, this.store, this.service, new PortalApi(this.database, this.config));
+    this.application = new ConnectedApplication(this.config, this.store, this.service);
   }
   static settings(email = 'person@example.test') {
     return { email, imap: { host: 'imap.example.test', port: 993, user: email, password: 'private-password' },

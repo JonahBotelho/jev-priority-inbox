@@ -7,11 +7,11 @@ import { MailAuth } from './MailAuth.js';
 import type { ComposeInput, SendResult } from '../../shared/mail.js';
 import { en } from '../../locales/en.js';
 import { DemoPreview } from '../http/DemoPreview.js';
-import { PortalApi } from '../application/PortalApi.js';
+import type { PortalApi } from '../application/PortalApi.js';
 
 export class ConnectedApplication {
   readonly app = express();
-  constructor(config: Config, store: MailStore, service: MailService, portal: PortalApi) {
+  constructor(config: Config, store: MailStore, service: MailService, portal?: PortalApi) {
     const auth = new MailAuth(store, service, config);
     this.app.set('trust proxy', 1);
     this.app.disable('x-powered-by');
@@ -38,7 +38,7 @@ export class ConnectedApplication {
       next();
     });
     this.app.get('/v1/mode', (_request, response) => response.json({ connected: true, google: Boolean(config.googleClientId && config.googleClientSecret) }));
-    this.app.use('/v1', portal.router);
+    if (portal) this.app.use('/v1', portal.router, portal.legacyManagement);
     this.app.use('/v1', auth.router);
     this.app.use('/v1', new DemoPreview().router);
     this.app.use('/v1', (request, response, next) => {
