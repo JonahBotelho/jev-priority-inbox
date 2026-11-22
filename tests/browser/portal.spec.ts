@@ -17,6 +17,7 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByText(email)).toBeVisible();
   await expect(page.locator('.portal-usage strong')).toHaveText('0');
+  await expect(page.getByRole('region', { name: text.netlifyCredits })).toContainText(text.noCreditCheck);
   await page.getByLabel(text.subject).fill(en.fixtures.signoff.subject);
   await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
   await page.getByRole('button', {name:text.classify}).click();
@@ -32,6 +33,22 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.locator('.portal-usage strong')).toHaveText('1');
   await expect(page.locator('.portal-history')).toContainText('Urgent');
+});
+
+test('usage shows a verified zero team balance and the original check time', async ({page}) => {
+  const checkedAt = '2026-11-10T12:30:00Z';
+  await page.route('**/v1/auth/me', route => route.fulfill({ json: { id: 'member', email: 'member@example.test', role: 'user' } }));
+  await page.route('**/v1/classifications', route => route.fulfill({ json: { results: [] } }));
+  await page.route('**/v1/usage/me', route => route.fulfill({ json: {
+    requests: 7, successful: 7, lastRequest: null, netlifyCreditBalance: { remaining: '0', checkedAt },
+  } }));
+  await page.goto('/app');
+  const team = page.getByRole('region', { name: text.netlifyCredits });
+  await expect(page.locator('.portal-usage strong')).toHaveText('7');
+  await expect(team.getByText('0', { exact: true })).toBeVisible();
+  await expect(team).toContainText(text.manuallyChecked);
+  await expect(team.locator('time')).toHaveAttribute('datetime', checkedAt);
+  await expect(team.locator('time')).toContainText('2026');
 });
 
 test('administrator login opens the registered users list', async ({page}) => {

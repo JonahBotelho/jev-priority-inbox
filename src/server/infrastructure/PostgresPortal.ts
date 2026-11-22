@@ -73,7 +73,9 @@ export class PostgresPortal {
 
   async usage(userId: string): Promise<PortalUsage> {
     const { rows } = await this.database.pool.query<PortalUsage>(`SELECT count(*)::int AS requests,
-      (count(*) FILTER (WHERE status BETWEEN 200 AND 299))::int AS successful, max(created_at) AS "lastRequest"
+      (count(*) FILTER (WHERE status BETWEEN 200 AND 299))::int AS successful, max(created_at) AS "lastRequest",
+      (SELECT json_build_object('remaining', trim_scale(remaining_credits)::text, 'checkedAt', checked_at)
+         FROM netlify_credit_checks ORDER BY checked_at DESC LIMIT 1) AS "netlifyCreditBalance"
       FROM api_usage WHERE user_id=$1`, [userId]);
     return rows[0];
   }

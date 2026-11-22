@@ -46,3 +46,5 @@ Browser requests to these routes use `credentials: 'include'` and the configured
 | `POST /v1/classify` | Signed-in users submit `subject` and `text`. JSON includes `id`, `tier`, `score`, `model`, `provider` and `durationMs`. Invalid input returns `400`. A provider failure returns `502` and a missing classifier returns `503`. |
 | `GET /v1/usage/me` · `GET /v1/classifications` | Return the caller's request count, success count and last request time, or their latest 50 successful decisions. Valid failed submissions count toward usage. Reads and invalid submissions do not. |
 | `GET /v1/admin/dashboard` | Administrators can read registered accounts, their roles, registration dates and request counts. |
+
+`GET /v1/usage/me` also includes `netlifyCreditBalance`, shared across signed-in accounts. It contains the last observed balance as an exact decimal string (`remaining`) and its timestamp with time zone (`checkedAt`), or is `null` until the first manual check. Submitting a classification updates the caller’s request statistics. The team balance changes when a maintainer records a new reading from Netlify.
