@@ -11,9 +11,16 @@ npm ci
 cp -n .env.example .env
 ```
 
-In the server's `.env`, set `JEV_FUNCTION_URL` to the deployed function URL and `JEV_FUNCTION_SECRET` to its shared bearer secret. Run `npm run dev`, then open `http://localhost:5173`. The API runs on port 8000.
+In the server's `.env`, set `DATABASE_URL` to a development PostgreSQL connection string. A local example after running `createdb jev_inbox` is `postgresql://localhost/jev_inbox`. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` to enable classification. Run `npm run dev`, then open `http://localhost:5173`. The API runs on port 8000.
 
-In sample mode the API queues the nine approved fictional deliveries. In receiving mode it queues a Resend email ID after verifying its webhook. Jev reviews pending mail and SQLite saves the decisions. Refreshing the page reads those results. The UI reports pending or failed reviews.
+In sample mode the API queues nine fictional deliveries. In receiving mode it queues each verified Resend email ID once. PostgreSQL stores the queue and Jev's decisions. Refreshing the page reads the saved results.
+
+## Connect Neon
+
+1. In the Neon project, choose **Connect**, select the production branch and database, enable **Connection pooling**, and copy the full connection string with its SSL parameters. [Neon connection guide](https://neon.com/docs/connect/connect-from-any-app)
+2. In Render, open **jev-priority-inbox-api → Environment** and set `DATABASE_URL` to that string. Choose **Save only** to prepare it for the next deploy.
+3. To retain existing mail, take a consistent SQLite backup **before redeploying** the old Render service. Run `npm run import:sqlite -- /path/to/backup.sqlite` with the target `DATABASE_URL` set. The [importer](src/server/infrastructure/SqliteInboxImport.ts) copies public inbox IDs, stored decisions, previews and unfinished jobs. Rerunning skips existing deliveries. Coordinate the final backup with incoming webhooks so deliveries after the backup can be replayed from Resend.
+4. Deploy the updated backend. The API applies the [inbox schema](db/priority-inbox.sql) before accepting requests. Verify `/v1/health` reports `storage: postgresql` and `/v1/priority` returns the inbox. Both checks work without sending a test email.
 
 ## Connect the Resend inbox
 
@@ -26,12 +33,14 @@ The [Resend adapter](src/server/adapters/ResendMailbox.ts) checks the actual del
 ## Deploy
 
 - **Render API and client.** [render.yaml](render.yaml) configures the Node web service and the static site. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` on the API. On the client, set `VITE_API_URL` to the API origin and redeploy after changing it. The static publish directory is `dist/client`.
-- **Storage.** The API uses `SQLITE_PATH`, defaulting to `./data/mail.sqlite`. Render Free has ephemeral local storage. A storage reset clears saved decisions and delivery IDs. Use durable storage to retain live history and deduplication across such resets.
+- **Storage.** The public API requires PostgreSQL through the server-only `DATABASE_URL`. [PostgresInbox](src/server/infrastructure/PostgresInbox.ts) persists receipts and decisions across Render redeploys. The archived account and offline study code still reads its local SQLite files.
 - **Netlify Function.** [netlify.toml](netlify.toml) deploys [jev-classify](netlify/functions/jev-classify.ts) from `main` to `isa-term-project`. Set the same `JEV_FUNCTION_SECRET` on the function. Netlify AI Gateway supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL`. Enable AI features, complete a production deploy and allow public access to the production function so Render can reach it. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
 - **Automatic Jev deployments.** The repository owner registers the Netlify SSH public key with read-only access and subscribes the Netlify GitHub webhook to push events with content type `application/json`. [Repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
 - **Verify.** Visit `/v1/health` on the API, then open the client in a fresh browser. The inbox loads without a session. `GET /v1/priority` reports the saved cards and any pending or failed reviews.
 
 ## Development
+
+Install PostgreSQL server utilities (`pg_config`, `initdb`, `pg_ctl`) and run the tests under a regular OS user. The [test runner](tests/with-postgres.mjs) starts a disposable local PostgreSQL cluster for each suite. It supplies isolated database and provider settings. [PostgreSQL tests](tests/postgres-inbox.test.ts) cover concurrent workers, restart recovery and importing existing SQLite decisions.
 
 ```sh
 npm run build
@@ -40,6 +49,6 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels and placeholder address](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [public demo inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
+The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [priority inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
 
 The optional `npm run compare` command also requires `GEMINI_API_KEY` for the model comparison. See the [API contract](docs/api.md) and [architecture](docs/architecture.md) for the public demo.

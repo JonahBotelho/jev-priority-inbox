@@ -11,7 +11,7 @@ import { ResendMailbox } from '../src/server/adapters/ResendMailbox.js';
 import type { Classifier } from '../src/server/adapters/Providers.js';
 import { PublicPriorityInbox } from '../src/server/application/PublicPriorityInbox.js';
 import { createPublicInboxApi } from '../src/server/http/PublicInboxApi.js';
-import { Database } from '../src/server/infrastructure/Database.js';
+import { createTestStore } from './postgres-fixture.js';
 
 const apiKey = 'test-resend-server-key';
 const signingKey = Buffer.from('test-only-webhook-key');
@@ -30,8 +30,8 @@ function signedHeaders(payload: string, timestamp = Math.floor(Date.now() / 1000
 }
 
 async function openApi(t: TestContext, classifier?: Classifier) {
-  const db = new Database(':memory:');
-  const inbox = new PublicPriorityInbox(db, classifier, receiver);
+  const db = await createTestStore();
+  const inbox = await PublicPriorityInbox.open(db, classifier, receiver);
   const server = createPublicInboxApi(inbox).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/inbound`;
@@ -44,7 +44,7 @@ async function openApi(t: TestContext, classifier?: Classifier) {
     controller.abort();
     await running;
     await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
-    db.connection.close();
+    await db.pool.end();
   });
   return { db, inbox, post };
 }
@@ -60,10 +60,10 @@ test('only fresh, signed Resend deliveries to the correct SMTP envelope enter th
   assert.equal((await post(JSON.stringify(delivery(randomUUID(), ['other@ionooambea.resend.app'])))).status, 200);
   assert.equal((await post(JSON.stringify({ ...good, data: { ...good.data, email_id: 'invalid' } }))).status, 400);
   assert.equal((await post(JSON.stringify({ ...good, data: { ...good.data, received_for: undefined } }))).status, 400);
-  assert.equal(inbox.snapshot().processing.pending, 0);
+  assert.equal((await inbox.snapshot()).processing.pending, 0);
   assert.equal((await post(raw)).status, 200);
-  assert.equal(inbox.snapshot().processing.pending, 1);
-  assert.deepEqual(inbox.snapshot().cards, []);
+  assert.equal((await inbox.snapshot()).processing.pending, 1);
+  assert.deepEqual((await inbox.snapshot()).cards, []);
 });
 
 test('a sleeping live worker wakes, reads each email once and publishes only Jev-approved cleaned previews', async t => {
@@ -87,7 +87,7 @@ test('a sleeping live worker wakes, reads each email once and publishes only Jev
     const isUrgent = id === urgent.data.email_id;
     return Response.json({
       id, received_for: [labels.receivingAddress], from: 'someone@example.com', created_at: receivedAt,
-      subject: isUrgent ? 'Approval needed by 3 PM' : 'Monthly digest',
+      subject: isUrgent ? 'Approval\0 needed by 3 PM' : 'Monthly digest',
       text: isUrgent ? null : 'Routine private details', html: isUrgent
         ? '<p>Please approve before 3 PM. reviewer@example.com</p><blockquote>private history</blockquote><img src="https://example.com/image.png">' : null,
     });
@@ -97,31 +97,43 @@ test('a sleeping live worker wakes, reads each email once and publishes only Jev
   assert.deepEqual(repeated.map(r => r.status), [200, 200]);
   assert.equal((await post(JSON.stringify(routine))).status, 200);
   // The worker runs independently of HTTP reads, including arrivals after the initial queue is empty.
-  for (let n = 0; n < 100 && inbox.snapshot().processing.pending; n++) await delay(10);
-  assert.deepEqual(inbox.snapshot().processing, { pending: 0, failed: 0 });
-  assert.equal(inbox.snapshot().receivingAddress, labels.receivingAddress);
-  assert.deepEqual(inbox.snapshot().cards.map(c => [c.tier, c.subject, c.preview]), [
+  for (let n = 0; n < 100 && (await inbox.snapshot()).processing.pending; n++) await delay(10);
+  assert.deepEqual((await inbox.snapshot()).processing, { pending: 0, failed: 0 });
+  assert.equal((await inbox.snapshot()).receivingAddress, labels.receivingAddress);
+  assert.deepEqual((await inbox.snapshot()).cards.map(c => [c.tier, c.subject, c.preview]), [
     ['Urgent', 'Approval needed by 3 PM', 'Please approve before 3 PM.'],
   ]);
   assert.deepEqual(inputs.map(i => i.text).sort(), ['Please approve before 3 PM.', 'Routine private details'].sort());
   assert.ok(inputs.every(i => i.receivedAt === receivedAt && !('from' in i)));
   assert.equal((await post(firstBody)).status, 200);
   assert.deepEqual(reads.sort(), [urgent.data.email_id, routine.data.email_id].sort());
-  const stored = db.connection.prepare('SELECT subject,preview FROM messages WHERE provider_id=?').get(routine.data.email_id);
+  const { rows: [stored] } = await db.pool.query('SELECT subject,preview FROM jev_priority_messages WHERE provider_id=$1', [routine.data.email_id]);
   assert.deepEqual([stored?.subject, stored?.preview], ['', null]);
 });
 
 test('a queued event survives service reconstruction and a fetched email for another alias stays private', async t => {
-  const db = new Database(':memory:');
-  t.after(() => db.connection.close());
+  const db = await createTestStore();
+  t.after(() => db.pool.end());
   const id = randomUUID();
-  new PublicPriorityInbox(db, undefined, receiver).acceptDelivery(id, receivedAt);
+  const initial = await PublicPriorityInbox.open(db, undefined, receiver);
+  await initial.acceptDelivery(id, receivedAt);
   const classify = t.mock.fn(async () => ({ Emergency: 1, Urgent: 0, Routine: 0 }));
   t.mock.method(globalThis, 'fetch', () => Response.json({ id, received_for: ['another@example.test'],
     to: [labels.receivingAddress], subject: 'Private', text: 'Private body' }));
-  const recovered = new PublicPriorityInbox(db, { classify }, receiver);
+  const recovered = await PublicPriorityInbox.open(db, { classify }, receiver);
   await recovered.reviewPending(new AbortController().signal);
   assert.equal(classify.mock.callCount(), 0);
-  assert.deepEqual(recovered.snapshot().processing, { pending: 0, failed: 1 });
-  assert.deepEqual(recovered.snapshot().cards, []);
+  assert.deepEqual((await recovered.snapshot()).processing, { pending: 0, failed: 1 });
+  assert.deepEqual((await recovered.snapshot()).cards, []);
+});
+
+test('a failed database write returns 503 and the next signed delivery is stored once', async t => {
+  const { db, inbox, post } = await openApi(t);
+  const raw = JSON.stringify(delivery());
+  t.mock.method(db, 'accept', async () => { throw new Error('Database unavailable'); }, { times: 1 });
+  assert.equal((await post(raw)).status, 503);
+  assert.deepEqual((await inbox.snapshot()).processing, { pending: 0, failed: 0 });
+  assert.equal((await post(raw)).status, 200);
+  assert.equal((await post(raw)).status, 200);
+  assert.deepEqual((await inbox.snapshot()).processing, { pending: 1, failed: 0 });
 });

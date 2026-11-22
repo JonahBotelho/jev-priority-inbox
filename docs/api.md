@@ -4,11 +4,11 @@ The browser reads JSON under `/v1` without cookies. Resend submits signed delive
 
 ## GET /v1/health
 
-Returns `200` with `{"status":"ok"}` when the API is running.
+Returns `200` with `{"status":"ok","storage":"postgresql"}` after the API opens PostgreSQL and initializes its schema. This liveness check does not query the database on every Render probe.
 
 ## GET /v1/priority
 
-Returns an inbox snapshot. Each card has a stable ID, a confirmed tier, a subject, a message preview, and its fictional arrival time in UTC. The client displays local time. The following is an abbreviated example.
+Returns an inbox snapshot. Each card has a stable ID, a confirmed tier, a subject, a message preview, and its arrival time in UTC. The client displays local time. The following is an abbreviated example.
 
 ```json
 {
@@ -30,6 +30,6 @@ Emergency comes first, then Urgent. Within a tier the API orders by descending p
 
 ## POST /v1/inbound
 
-Resend sends an `email.received` event as raw JSON with the `svix-id`, `svix-timestamp`, and `svix-signature` headers. Render verifies the signature and timestamp, checks the SMTP envelope's `received_for` list, and commits the provider email ID and arrival time to SQLite before responding. A duplicate ID is acknowledged without adding another job.
+Resend sends an `email.received` event as raw JSON with the `svix-id`, `svix-timestamp`, and `svix-signature` headers. Render verifies the signature and timestamp, checks the SMTP envelope's `received_for` list, and commits the provider email ID and arrival time to PostgreSQL before responding. A duplicate ID is acknowledged without adding another job.
 
-The route returns `200` for an accepted delivery, a duplicate, or an unrelated signed event. It returns `401` for failed verification, `400` for invalid delivery metadata, `415` for an unsupported body type, and `503` until Resend is configured. A `200` acknowledges receipt. Jev classification completes asynchronously.
+The route returns `200` for an accepted delivery, a duplicate, or an unrelated signed event. It returns `401` for failed verification, `400` for invalid delivery metadata, `415` for an unsupported body type, and `503` if Resend is unconfigured or the database write fails. A `200` acknowledges receipt. Jev classification completes asynchronously.
