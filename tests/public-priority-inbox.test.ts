@@ -82,4 +82,5 @@ test('the public endpoint needs no account, credentials or Jev key to read its r
     assert.equal((await fetch(base + path)).status, 404);
   }
   assert.equal((await fetch(base + '/classify', { method: 'POST' })).status, 404);
+  assert.equal((await fetch(base + '/inbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503);
 });

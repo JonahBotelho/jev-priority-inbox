@@ -1,4 +1,4 @@
-// One public list for the home page and inbox links. Each row opens in place to read the sample.
+// One public reader for demo samples and delivered mail.
 import { useEffect, useState } from 'react';
 import { en } from '../locales/en.js';
 import { priorityInboxText as labels } from '../locales/priorityInbox.js';
@@ -24,7 +24,7 @@ function EmailRow({ card }: { card: Card }) {
         </time>
         <span className="email-chevron" aria-hidden="true" />
       </summary>
-      {card.preview && <p className="email-text">{card.preview}</p>}
+      <p className="email-text">{card.preview || labels.noPreview}</p>
     </details>
   </li>;
 }
@@ -46,21 +46,41 @@ export function PriorityInbox() {
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    let loading = false;
+    let nextRefresh = 0;
     setLoadError(false);
     async function load() {
+      if (loading || controller.signal.aborted || document.hidden) return;
+      clearTimeout(timer);
+      loading = true;
       try {
         const response = await fetch(InboxApi.url('/priority'), { credentials: 'omit', signal: controller.signal });
         if (!response.ok) throw new Error(labels.loadError);
         const snapshot: PublicInboxSnapshot = await response.json();
         if (controller.signal.aborted) return;
         setInbox(snapshot);
-        if (snapshot.reviewAvailable && snapshot.processing.pending > 0) timer = setTimeout(load, 1500);
+        setLoadError(false);
+        nextRefresh = snapshot.receivingAddress ? 30000 : 0;
+        if (snapshot.reviewAvailable && snapshot.processing.pending > 0) nextRefresh = 1500;
       } catch {
         if (!controller.signal.aborted) setLoadError(true);
+        if (nextRefresh) nextRefresh = 30000;
+      } finally {
+        loading = false;
+        if (!controller.signal.aborted && !document.hidden && nextRefresh) timer = setTimeout(load, nextRefresh);
       }
     }
+    function onVisibility() {
+      if (document.hidden) clearTimeout(timer);
+      else void load();
+    }
+    document.addEventListener('visibilitychange', onVisibility);
     void load();
-    return () => { controller.abort(); clearTimeout(timer); };
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [attempt]);
 
   const status = inboxStatus(inbox, loadError);
@@ -72,14 +92,16 @@ export function PriorityInbox() {
       <section className="address-panel" aria-label={labels.addressLabel}>
         <div className="address-content">
           <p className="address-label">{labels.addressLabel}</p>
-          <p className="inbox-address">{labels.address}</p>
-          <p className="address-hint">{labels.addressHint}</p>
+          <p className="inbox-address">{inbox?.receivingAddress
+            ? <a href={`mailto:${inbox.receivingAddress}`}>{inbox.receivingAddress}</a> : labels.address}</p>
+          <p className="address-hint">{inbox?.receivingAddress ? labels.receivingHint : labels.addressHint}</p>
         </div>
         <span className="address-envelope" aria-hidden="true" />
       </section>
       <section className="priority-section" aria-labelledby="priority-heading">
         <div className="priority-heading">
-          <div><h1 id="priority-heading">{labels.heading}</h1><p>{labels.description}</p></div>
+          <div><h1 id="priority-heading">{labels.heading}</h1>
+            <p>{inbox?.receivingAddress ? labels.receivingDescription : labels.description}</p></div>
           {inbox && <span className="message-count">{labels.count(inbox.cards.length)}</span>}
         </div>
         {Boolean(inbox?.cards.length) && <ul className="priority-emails">

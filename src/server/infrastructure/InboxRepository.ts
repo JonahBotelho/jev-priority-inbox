@@ -10,12 +10,11 @@ export interface Job { id: string; mailbox: string; provider_id: string; receive
 export class InboxRepository {
   constructor(readonly database: Database) { StudySchema.migrate(database); }
 
-  accept(mailbox: string, providerId: string, receivedAt: string): void {
-    this.database.transaction(() => {
-      this.database.connection.prepare(`INSERT INTO messages(id, mailbox, provider_id, received_at, created_at)
-        VALUES(?,?,?,?,?) ON CONFLICT(mailbox, provider_id) DO NOTHING`)
-        .run(randomUUID(), mailbox, providerId, receivedAt, Date.now());
-    });
+  accept(mailbox: string, providerId: string, receivedAt: string): boolean {
+    const result = this.database.connection.prepare(`INSERT INTO messages(id, mailbox, provider_id, received_at, created_at)
+      VALUES(?,?,?,?,?) ON CONFLICT(mailbox, provider_id) DO NOTHING`)
+      .run(randomUUID(), mailbox, providerId, receivedAt, Date.now());
+    return result.changes === 1;
   }
 
   recover(mailbox: string | null = null): void {
@@ -61,10 +60,14 @@ export class InboxRepository {
       ${confirmed} AND ${tier} IN ('Emergency','Urgent')
       ORDER BY CASE ${tier} WHEN 'Emergency' THEN 0 ELSE 1 END,
       score DESC, received_at DESC, id ASC`).all(mailbox) as unknown as Card[];
+    return { cards, processing: this.processing(mailbox) };
+  }
+
+  processing(mailbox: string): Snapshot['processing'] {
     const counts = this.database.connection.prepare(`SELECT
       SUM(CASE WHEN status IN ('pending','processing') THEN 1 ELSE 0 END) AS pending,
       SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed FROM messages WHERE mailbox=?`).get(mailbox)!;
-    return { cards, processing: { pending: Number(counts.pending ?? 0), failed: Number(counts.failed ?? 0) } };
+    return { pending: Number(counts.pending ?? 0), failed: Number(counts.failed ?? 0) };
   }
 
   find(mailbox: string, id: string): Job | undefined {
