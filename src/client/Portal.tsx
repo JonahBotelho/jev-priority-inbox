@@ -5,9 +5,9 @@ import { portalText as labels } from '../locales/portal.js';
 import { maxMessageLength, maxSubjectLength } from '../shared/jev.js';
 import type { PortalDashboard, PortalDecision, PortalHistory, PortalUsage, PortalUser } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
+import { signedInDestination } from './PortalNavigation.js';
 import './portal.css';
 
-const home = (user: PortalUser) => user.role === 'admin' ? '/admin' : '/app';
 const timestamp = (value: string) => new Date(value).toLocaleString();
 const creditCheckTime = new Intl.DateTimeFormat(undefined, {
   year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
@@ -40,7 +40,8 @@ export function Portal({ path }: { path: string }) {
     setError('');
     InboxApi.request<PortalUser>('/auth/me', 'GET', undefined, controller.signal).then(account => {
       if (controller.signal.aborted) return;
-      if (authPage || (path === '/admin' && account.role !== 'admin')) { window.location.replace(home(account)); return; }
+      const destination = signedInDestination(path, account.role);
+      if (destination !== path) { window.location.replace(destination); return; }
       setUser(account); setReady(true);
     }).catch(cause => {
       if (controller.signal.aborted) return;
@@ -59,7 +60,7 @@ export function Portal({ path }: { path: string }) {
   if (!ready) return <main className="portal-loading">{error
     ? <div role="alert">{error} <button className="portal-secondary" onClick={() => setAttempt(n => n + 1)}>{en.retry}</button></div>
     : en.loading}</main>;
-  if (!user) return <Login registering={path === '/register'} />;
+  if (!user) return <Login path={path} />;
   return <div className="portal-shell">
     <header className="portal-header"><Brand /><div className="portal-identity">
       <span>{user.email}<small>{user.role === 'admin' ? labels.admin : labels.user}</small></span>
@@ -74,7 +75,8 @@ export function Portal({ path }: { path: string }) {
   </div>;
 }
 
-function Login({ registering }: { registering: boolean }) {
+function Login({ path }: { path: string }) {
+  const registering = path === '/register';
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -89,7 +91,7 @@ function Login({ registering }: { registering: boolean }) {
         if (status(cause) === 401) throw new Error(labels.cookieError);
         throw cause;
       });
-      window.location.replace(home(user));
+      window.location.replace(signedInDestination(path, user.role));
     } catch (cause) { setError(errorText(cause)); setBusy(false); }
   }
   return <main className="portal-auth-page"><Brand /><section className="portal-card">

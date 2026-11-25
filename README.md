@@ -2,9 +2,9 @@
 
 The [public inbox](https://jev-priority-inbox-client.onrender.com/) shows Emergency and Urgent emails reviewed by Jev. The same reader displays fictional samples by default and real deliveries to `priority@ionooambea.resend.app` when Resend is configured. The address panel identifies the active source. Expand a row to read its preview.
 
-## Account portal
+## Email classifier demo
 
-Open **Account portal** from the public inbox to [sign in](https://jev-priority-inbox-client.onrender.com/login) or [register](https://jev-priority-inbox-client.onrender.com/register). [My classifier](https://jev-priority-inbox-client.onrender.com/app) accepts an email subject and message and displays Jev’s decision, personal classification history and API usage. A valid submission counts once, including a provider failure. The portal saves the result and duration without saving the submitted email text. [Registered users](https://jev-priority-inbox-client.onrender.com/admin) is an administrator-only, read-only directory.
+[Signing in](https://jev-priority-inbox-client.onrender.com/login) or [creating an account](https://jev-priority-inbox-client.onrender.com/register) opens the public inbox. Select [**Try the email demo**](https://jev-priority-inbox-client.onrender.com/app) to classify a subject and message without sending an email. The demo shows Jev’s decision, your classification history and API usage. A valid submission counts once, including a provider failure. The portal saves the result and duration without saving the submitted email text. [Registered users](https://jev-priority-inbox-client.onrender.com/admin) is an administrator-only, read-only directory.
 
 **Your API usage** also shows the last manually verified Netlify team credit balance and the time it was checked. To refresh it, read **Usage & billing → Credit balance** for the team hosting the Jev function. In the Neon SQL Editor, replace `<amount>` with that reading and run `INSERT INTO netlify_credit_checks (remaining_credits) VALUES (<amount>);` at the time of the check. When recording an earlier reading, supply its original `checked_at` timestamp with a time zone. The portal reads the latest observation on its next usage request. [Netlify credit balance guide](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/monitor-usage-for-credit-based-plans/)
 
@@ -59,6 +59,6 @@ npm run test:browser
 
 The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [priority inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
 
-The [portal UI](src/client/Portal.tsx) uses [localized copy](src/locales/portal.ts) and a [shared response contract](src/shared/portal.ts). [PortalApi](src/server/application/PortalApi.ts) uses [PortalAuth](src/server/application/PortalAuth.ts) and [PostgresPortal](src/server/infrastructure/PostgresPortal.ts). [Browser tests](tests/browser/portal.spec.ts) use a [loopback Jev stand-in](tests/browser-jev.ts).
+The [portal UI](src/client/Portal.tsx) uses [localized copy](src/locales/portal.ts) and a [shared response contract](src/shared/portal.ts). [Navigation tests](tests/portal-navigation.test.ts) cover the [sign-in and role redirects](src/client/PortalNavigation.ts). [PortalApi](src/server/application/PortalApi.ts) uses [PortalAuth](src/server/application/PortalAuth.ts) and [PostgresPortal](src/server/infrastructure/PostgresPortal.ts). [Browser tests](tests/browser/portal.spec.ts) use a [loopback Jev stand-in](tests/browser-jev.ts).
 
 The optional `npm run compare` command also requires `GEMINI_API_KEY` for the model comparison. See the [API contract](docs/api.md) and [architecture](docs/architecture.md) for the public demo.
