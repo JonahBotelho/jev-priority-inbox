@@ -4,7 +4,7 @@ import { en } from '../../src/locales/en.js';
 import { portalText as text } from '../../src/locales/portal.js';
 import { priorityInboxText as inboxText } from '../../src/locales/priorityInbox.js';
 
-test('a member registers, classifies an email, reviews usage and signs back in', async ({page}) => {
+test('a member lands on the public inbox after registration and again after signing back in', async ({page}) => {
   const email = 'browser-member@example.test';
   const demoLink = page.getByRole('link', { name: inboxText.tryEmailDemo });
   const directoryLink = page.getByRole('link', { name: text.accounts });
@@ -41,8 +41,11 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await page.getByLabel(text.email).fill(email);
   await page.getByLabel(text.password).fill('member-test-password');
   await page.getByRole('button', {name:text.signIn}).click();
-  await expect(page).toHaveURL('/app');
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('heading', { name: inboxText.heading })).toBeVisible();
   await page.goto('/login');
+  await expect(page).toHaveURL('/');
+  await demoLink.click();
   await expect(page).toHaveURL('/app');
   await expect(page.locator('.portal-usage strong')).toHaveText('1');
   await expect(page.locator('.portal-history')).toContainText('Urgent');
