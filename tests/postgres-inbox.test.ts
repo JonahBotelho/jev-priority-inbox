@@ -24,10 +24,10 @@ test('routine counts and requested subjects include only reviewed, unhandled mai
     ('old',$1,'old',$2,'complete','Routine',$3,'',NULL,false),
     ('new',$1,'new',$4,'complete','Routine',$3,'Monthly digest','Private preview',false),
     ('tie',$1,'tie',$4,'complete','Routine',$3,'Service news',NULL,false),
-    ('unreviewed',$1,'unreviewed',$2,'complete','Routine',NULL,'Unchecked',NULL,false),
-    ('hidden',$1,'hidden',$2,'complete','Routine',$3,'Handled',NULL,true),
-    ('failed',$1,'failed',$2,'failed','Routine',$3,'Failed',NULL,false),
-    ('private','other-inbox','private',$2,'complete','Routine',$3,'Other inbox',NULL,false)`,
+    ('unreviewed',$1,'unreviewed',$2,'complete','Routine',NULL,NULL,NULL,false),
+    ('hidden',$1,'hidden',$2,'complete','Routine',$3,NULL,NULL,true),
+    ('failed',$1,'failed',$2,'failed','Routine',$3,NULL,NULL,false),
+    ('private','other-inbox','private',$2,'complete','Routine',$3,NULL,NULL,false)`,
   [mailbox, receivedAt, { Emergency: 0, Urgent: 0, Routine: 1 }, later]);
 
   const summary = await store.snapshot(mailbox);
@@ -37,6 +37,14 @@ test('routine counts and requested subjects include only reviewed, unhandled mai
     { id: 'tie', subject: 'Service news', receivedAt: later },
     { id: 'old', subject: null, receivedAt },
   ] });
+  const candidates = [];
+  for await (const id of store.missingRoutineSubjectIds(mailbox)) candidates.push(id);
+  assert.deepEqual(candidates, ['old']);
+  await store.restoreRoutineSubject(mailbox, 'old', 'Restored');
+  await store.restoreRoutineSubject(mailbox, 'old', 'Stale result');
+  const after = await store.snapshot(mailbox, true);
+  assert.equal(after.routineMessages?.find(row => row.id === 'old')?.subject, 'Restored');
+  assert.equal((await store.missingRoutineSubjectIds(mailbox).next()).done, true);
 });
 
 test('two API instances share receipts and cannot complete or fail a superseded claim', async t => {

@@ -1,7 +1,12 @@
 // Conservative text cleanup and explicit approval of study inputs.
 import { Fixtures } from '../adapters/Fixtures.js';
+import { maxSubjectLength } from '../../shared/jev.js';
 
 export class MessagePreparation {
+  cleanSubject(subject: string): string {
+    return this.clean(subject).slice(0, maxSubjectLength).trim();
+  }
+
   clean(text: string): string {
     // PostgreSQL text cannot contain a NUL, even when a received message includes one.
     return text.replaceAll('\0', '').split(/\r?\n/).filter(line => !line.trimStart().startsWith('>'))

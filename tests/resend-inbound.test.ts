@@ -133,6 +133,51 @@ test('a queued event survives service reconstruction and a fetched email for ano
   assert.deepEqual((await recovered.snapshot()).cards, []);
 });
 
+test('startup restores only missing, verified Routine subjects without a classifier', async t => {
+  const db = await createTestStore();
+  t.after(() => db.pool.end());
+  const mailbox = 'resend/' + receiver.address;
+  const probabilities = { Emergency: 0, Urgent: 0, Routine: 1 };
+  const archived = randomUUID(), untitled = randomUUID(), wrongRecipient = randomUUID();
+  const alreadySaved = randomUUID(), otherMailbox = randomUUID();
+  async function seed(id: string, subject: string | null, targetMailbox = mailbox) {
+    await db.pool.query(`INSERT INTO jev_priority_messages
+      (id, mailbox, provider_id, received_at, status, tier, probabilities, score, subject)
+      VALUES ($1,$2,$1,$3,'complete','Routine',$4,0,$5)`, [id, targetMailbox, receivedAt, probabilities, subject]);
+  }
+  await seed(archived, '');
+  await seed(untitled, null);
+  await seed(wrongRecipient, '');
+  await seed(alreadySaved, 'Kept title');
+  await seed(otherMailbox, null, 'another-mailbox');
+
+  const reads: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (resource: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(resource, init).url);
+    const id = url.pathname.split('/').pop()!;
+    reads.push(id);
+    if (id === archived && reads.filter(value => value === id).length === 1)
+      return Response.json({ name: 'rate_limit_exceeded', message: 'Try again' }, { status: 429 });
+    return Response.json({ id, received_for: id === wrongRecipient ? ['other@example.test'] : [receiver.address],
+      subject: id === untitled ? '' : 'Monthly digest editor@example.test', text: 'Unpublished message body' });
+  });
+  const inbox = await PublicPriorityInbox.open(db, undefined, receiver);
+  const signal = new AbortController().signal;
+  await inbox.run(signal);
+  const { rows: [stored] } = await db.pool.query(`SELECT subject, preview, tier, score, probabilities, received_at FROM jev_priority_messages WHERE id=$1`, [archived]);
+  assert.deepEqual(stored, { subject: 'Monthly digest', preview: null, tier: 'Routine', score: 0, probabilities, received_at: new Date(receivedAt) });
+  const snapshot = await inbox.snapshot(true);
+  assert.equal(snapshot.routineCount, 4);
+  assert.deepEqual(new Map(snapshot.routineMessages?.map(row => [row.id, row.subject])), new Map([
+    [archived, 'Monthly digest'], [untitled, labels.noSubject], [wrongRecipient, null], [alreadySaved, 'Kept title'],
+  ]));
+  assert.deepEqual(reads.sort(), [archived, archived, untitled, wrongRecipient].sort());
+
+  reads.length = 0;
+  await inbox.run(signal);
+  assert.deepEqual(reads, [wrongRecipient]);
+});
+
 test('a failed database write returns 503 and the next signed delivery is stored once', async t => {
   const { db, inbox, post } = await openApi(t);
   const raw = JSON.stringify(delivery());

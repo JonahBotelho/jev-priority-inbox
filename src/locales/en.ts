@@ -21,6 +21,7 @@ export const en = {
   config: 'Invalid server configuration',
   databaseUrlRequired: 'Set DATABASE_URL to a PostgreSQL connection string.',
   databaseUnavailable: 'The inbox database is unavailable.',
+  routineSubjectRecoveryFailed: 'Some older Routine email subjects could not be restored. Missing subjects will be retried on startup.',
   importUsage: 'Provide the path to a SQLite inbox backup.',
   missingInboxTable: 'This backup has no inbox messages table.',
   importResult: (copied: number, existing: number) => `Imported ${copied} inbox records. Already present: ${existing}.`,

@@ -19,6 +19,9 @@ function withUtcArrival<T extends { receivedAt: string }>(email: T): T {
   return { ...email, receivedAt: new Date(email.receivedAt).toISOString() };
 }
 
+const missingRoutineSubject = `status='complete' AND NOT handled AND tier='Routine'
+  AND probabilities IS NOT NULL AND NULLIF(subject,'') IS NULL`;
+
 export class PostgresInbox implements PriorityQueue {
   private constructor(readonly pool: Pool) {}
 
@@ -96,6 +99,23 @@ export class PostgresInbox implements PriorityQueue {
     const { rows } = await this.pool.query<{ pending: boolean }>(`SELECT EXISTS (SELECT 1 FROM jev_priority_messages
       WHERE mailbox=$1 AND status IN ('pending','processing')) AS pending`, [mailbox]);
     return rows[0].pending;
+  }
+
+  async *missingRoutineSubjectIds(mailbox: string): AsyncGenerator<string> {
+    let after = '';
+    while (true) {
+      const { rows } = await this.pool.query<{ provider_id: string }>(`SELECT provider_id FROM jev_priority_messages
+        WHERE mailbox=$1 AND provider_id > $2 AND ${missingRoutineSubject} ORDER BY provider_id LIMIT 50`, [mailbox, after]);
+      if (!rows.length) return;
+      for (const row of rows) yield row.provider_id;
+      after = rows[rows.length - 1].provider_id;
+    }
+  }
+
+  async restoreRoutineSubject(mailbox: string, providerId: string, subject: string): Promise<void> {
+    // The row may have been restored or handled while Resend was answering.
+    await this.pool.query(`UPDATE jev_priority_messages SET subject=$3
+      WHERE mailbox=$1 AND provider_id=$2 AND ${missingRoutineSubject}`, [mailbox, providerId, subject]);
   }
 
   async snapshot(mailbox: string, includeRoutine = false) {

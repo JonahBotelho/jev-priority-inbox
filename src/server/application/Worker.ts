@@ -1,7 +1,7 @@
 // Serial durable worker. Jobs are retried once and decisions are committed before notification.
 import type { Classifier, MailboxProvider } from '../adapters/Providers.js';
 import { ProviderError } from '../adapters/Providers.js';
-import { maxMessageLength, maxSubjectLength } from '../../shared/jev.js';
+import { maxMessageLength } from '../../shared/jev.js';
 import { priorityInboxText } from '../../locales/priorityInbox.js';
 import type { ClassificationInput, Probabilities, Tier } from '../../shared/types.js';
 import { PriorityPolicy } from '../domain/PriorityPolicy.js';
@@ -45,7 +45,7 @@ export class Worker {
 
   private async review(job: Job): Promise<Decision> {
     const original = await this.attempt(signal => this.mailbox.fetch(job.provider_id, signal));
-    const subject = this.preparation.clean(original.subject).slice(0, maxSubjectLength).trim();
+    const subject = this.preparation.cleanSubject(original.subject);
     const text = this.preparation.clean(original.text).slice(0, maxMessageLength).trim();
     const sample = this.source === 'samples';
     if ((!subject && !text) || (sample && !this.preparation.approved(subject, text))) {
