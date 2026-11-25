@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { signedInDestination } from '../src/client/PortalNavigation.js';
 
-test('sign-in and registration open the public inbox for both roles', () => {
-  for (const role of ['user', 'admin'] as const) {
-    assert.equal(signedInDestination('/login', role), '/');
-    assert.equal(signedInDestination('/register', role), '/');
+test('sign-in and registration send each role to its landing page', () => {
+  for (const path of ['/login', '/register']) {
+    assert.equal(signedInDestination(path, 'user'), '/app');
+    assert.equal(signedInDestination(path, 'admin'), '/admin');
   }
 });
 
