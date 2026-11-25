@@ -91,7 +91,7 @@ function Login({ path }: { path: string }) {
         if (status(cause) === 401) throw new Error(labels.cookieError);
         throw cause;
       });
-      window.location.replace(signedInDestination(path, user.role));
+      window.location.replace(signedInDestination(path, user.role, registering));
     } catch (cause) { setError(errorText(cause)); setBusy(false); }
   }
   return <main className="portal-auth-page"><Brand /><section className="portal-card">
