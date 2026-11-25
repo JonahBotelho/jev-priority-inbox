@@ -1,6 +1,8 @@
 # Jev Priority Inbox
 
-The [public inbox](https://jev-priority-inbox-client.onrender.com/) shows Emergency and Urgent emails reviewed by Jev. The same reader displays fictional samples by default and real deliveries to `priority@ionooambea.resend.app` when Resend is configured. The address panel identifies the active source. Expand a row to read its preview.
+The [public inbox](https://jev-priority-inbox-client.onrender.com/) shows Emergency and Urgent emails reviewed by Jev. Expand a priority email to read its preview. Below them, **Lower-priority emails** shows the Routine count. Expand the group to see subjects and arrival times, newest first. Older deliveries whose subjects were never saved show **Subject unavailable** and their arrival time.
+
+The same reader displays fictional samples by default and real deliveries to `priority@ionooambea.resend.app` when Resend is configured. The address panel identifies the active source.
 
 ## Email classifier demo
 

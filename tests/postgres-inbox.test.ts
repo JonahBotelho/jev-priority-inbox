@@ -15,6 +15,30 @@ const mailbox = 'resend/' + priorityInboxText.receivingAddress;
 const receivedAt = '2026-11-21T18:00:00.000Z';
 const urgent = { Emergency: 0, Urgent: 1, Routine: 0 };
 
+test('routine counts and requested subjects include only reviewed, unhandled mail from this inbox', async t => {
+  const store = await createTestStore();
+  t.after(() => store.pool.end());
+  const later = '2026-11-22T18:00:00.000Z';
+  await store.pool.query(`INSERT INTO jev_priority_messages
+    (id,mailbox,provider_id,received_at,status,tier,probabilities,subject,preview,handled) VALUES
+    ('old',$1,'old',$2,'complete','Routine',$3,'',NULL,false),
+    ('new',$1,'new',$4,'complete','Routine',$3,'Monthly digest','Private preview',false),
+    ('tie',$1,'tie',$4,'complete','Routine',$3,'Service news',NULL,false),
+    ('unreviewed',$1,'unreviewed',$2,'complete','Routine',NULL,'Unchecked',NULL,false),
+    ('hidden',$1,'hidden',$2,'complete','Routine',$3,'Handled',NULL,true),
+    ('failed',$1,'failed',$2,'failed','Routine',$3,'Failed',NULL,false),
+    ('private','other-inbox','private',$2,'complete','Routine',$3,'Other inbox',NULL,false)`,
+  [mailbox, receivedAt, { Emergency: 0, Urgent: 0, Routine: 1 }, later]);
+
+  const summary = await store.snapshot(mailbox);
+  assert.deepEqual(summary, { cards: [], routineCount: 3, processing: { pending: 0, failed: 1 } });
+  assert.deepEqual(await store.snapshot(mailbox, true), { ...summary, routineMessages: [
+    { id: 'new', subject: 'Monthly digest', receivedAt: later },
+    { id: 'tie', subject: 'Service news', receivedAt: later },
+    { id: 'old', subject: null, receivedAt },
+  ] });
+});
+
 test('two API instances share receipts and cannot complete or fail a superseded claim', async t => {
   const first = await createTestStore();
   const second = await PostgresInbox.open(first.pool.options.connectionString);

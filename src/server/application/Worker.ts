@@ -56,9 +56,9 @@ export class Worker {
       subject: title, text: text || subject, receivedAt: job.received_at, ...this.config,
     }, signal));
     const decision = new PriorityPolicy().decide(probabilities);
-    const saveContent = sample || decision.tier !== 'Routine';
+    const savePreview = sample || decision.tier !== 'Routine';
     const previewSource = sample ? original.text : text;
-    return { subject: saveContent ? title : '', probabilities, ...decision, text: saveContent ? previewSource : undefined };
+    return { subject: title, probabilities, ...decision, text: savePreview ? previewSource : undefined };
   }
 
   private async attempt<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {

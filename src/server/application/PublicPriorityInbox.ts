@@ -44,8 +44,8 @@ export class PublicPriorityInbox {
     return inbox;
   }
 
-  async snapshot(): Promise<PublicInboxSnapshot> {
-    return { ...await this.repository.snapshot(this.mailbox), reviewAvailable: Boolean(this.worker),
+  async snapshot(includeRoutine = false): Promise<PublicInboxSnapshot> {
+    return { ...await this.repository.snapshot(this.mailbox, includeRoutine), reviewAvailable: Boolean(this.worker),
       ...(this.receiving && { receivingAddress: this.receiving.address }) };
   }
 

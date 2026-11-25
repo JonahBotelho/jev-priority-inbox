@@ -2,15 +2,21 @@
 import { useEffect, useState } from 'react';
 import { en } from '../locales/en.js';
 import { priorityInboxText as labels } from '../locales/priorityInbox.js';
-import type { Card, PublicInboxSnapshot } from '../shared/types.js';
+import type { Card, PublicInboxSnapshot, RoutineEmail } from '../shared/types.js';
 import { InboxApi } from './InboxApi.js';
 import './priority-inbox.css';
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
+function EmailTime({ receivedAt }: { receivedAt: string }) {
+  const received = new Date(receivedAt);
+  return <time className="email-time" dateTime={receivedAt} title={received.toLocaleString()}>
+    <span>{dateFormat.format(received)}</span>{' '}<span>{timeFormat.format(received)}</span>
+  </time>;
+}
+
 function EmailRow({ card }: { card: Card }) {
-  const received = new Date(card.receivedAt);
   return <li>
     <details className="priority-email">
       <summary>
@@ -19,14 +25,31 @@ function EmailRow({ card }: { card: Card }) {
           <strong className="email-subject">{card.subject}</strong>
           {card.preview && <span className="email-excerpt" aria-hidden="true">{card.preview}</span>}
         </span>
-        <time className="email-time" dateTime={card.receivedAt}>
-          <span>{dateFormat.format(received)}</span>{' '}<span>{timeFormat.format(received)}</span>
-        </time>
+        <EmailTime receivedAt={card.receivedAt} />
         <span className="email-chevron" aria-hidden="true" />
       </summary>
       <p className="email-text">{card.preview || labels.noPreview}</p>
     </details>
   </li>;
+}
+
+function InboxNotice({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return <div className="inbox-status" role="status">
+    <span>{text}</span>
+    {onRetry && <button type="button" onClick={onRetry}>{labels.retry}</button>}
+  </div>;
+}
+
+function RoutineEmailList({ messages, error, onRetry }: { messages?: RoutineEmail[]; error: boolean; onRetry: () => void }) {
+  if (error) return <InboxNotice text={labels.routineError} onRetry={onRetry} />;
+  if (!messages) return <InboxNotice text={labels.routineLoading} />;
+  if (!messages.length) return <InboxNotice text={labels.routineEmpty} />;
+  return <ul className="routine-list">
+    {messages.map(email => <li key={email.id}>
+      <span>{email.subject ?? labels.subjectUnavailable}</span>
+      <EmailTime receivedAt={email.receivedAt} />
+    </li>)}
+  </ul>;
 }
 
 function inboxStatus(inbox: PublicInboxSnapshot | undefined, loadError: boolean) {
@@ -42,6 +65,7 @@ export function PriorityInbox() {
   const [inbox, setInbox] = useState<PublicInboxSnapshot>();
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [routineExpanded, setRoutineExpanded] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -54,7 +78,8 @@ export function PriorityInbox() {
       clearTimeout(timer);
       loading = true;
       try {
-        const response = await fetch(InboxApi.url('/priority'), { credentials: 'omit', signal: controller.signal });
+        const path = routineExpanded ? '/priority?include=routine' : '/priority';
+        const response = await fetch(InboxApi.url(path), { credentials: 'omit', signal: controller.signal });
         if (!response.ok) throw new Error(labels.loadError);
         const snapshot: PublicInboxSnapshot = await response.json();
         if (controller.signal.aborted) return;
@@ -81,9 +106,11 @@ export function PriorityInbox() {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [attempt]);
+  }, [attempt, routineExpanded]);
 
-  const status = inboxStatus(inbox, loadError);
+  const routineError = Boolean(loadError && routineExpanded && inbox && !inbox.routineMessages);
+  const status = inboxStatus(inbox, loadError && !routineError);
+  const retry = () => setAttempt(value => value + 1);
   return <div className="inbox-page">
     <header className="inbox-masthead">
       <div className="inbox-width wordmark"><span className="brand-stamp" aria-hidden="true"><i /></span>{en.brand}
@@ -108,9 +135,15 @@ export function PriorityInbox() {
         {Boolean(inbox?.cards.length) && <ul className="priority-emails">
           {inbox?.cards.map(card => <EmailRow key={card.id} card={card} />)}
         </ul>}
-        {status && <div className="inbox-status" role="status">
-          <span>{status}</span>
-          {loadError && <button type="button" onClick={() => setAttempt(value => value + 1)}>{labels.retry}</button>}
+        {status && <InboxNotice text={status} onRetry={loadError && !routineError ? retry : undefined} />}
+        {inbox?.routineCount !== undefined && <div className="routine-group">
+          <h2><button type="button" className="routine-toggle" aria-expanded={routineExpanded}
+            aria-controls="routine-emails" onClick={() => setRoutineExpanded(value => !value)}>
+            {labels.routineHeading}<span className="routine-count">{inbox.routineCount}</span>
+          </button></h2>
+          <div id="routine-emails" hidden={!routineExpanded}>
+            {routineExpanded && <RoutineEmailList messages={inbox.routineMessages} error={routineError} onRetry={retry} />}
+          </div>
         </div>}
       </section>
     </main>

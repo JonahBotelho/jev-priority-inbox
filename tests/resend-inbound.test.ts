@@ -89,7 +89,7 @@ test('a sleeping live worker wakes, reads each email once and publishes only Jev
     const isUrgent = id === urgent.data.email_id;
     return Response.json({
       id, received_for: [labels.receivingAddress], from: 'someone@example.com', created_at: receivedAt,
-      subject: isUrgent ? 'Approval\0 needed by 3 PM' : 'Monthly digest',
+      subject: isUrgent ? 'Approval\0 needed by 3 PM' : 'Monthly digest editor@example.com',
       text: isUrgent ? null : 'Routine private details', html: isUrgent
         ? '<p>Please approve before 3 PM. reviewer@example.com</p><blockquote>private history</blockquote><img src="https://example.com/image.png">' : null,
     });
@@ -109,8 +109,12 @@ test('a sleeping live worker wakes, reads each email once and publishes only Jev
   assert.ok(inputs.every(i => i.receivedAt === receivedAt && !('from' in i)));
   assert.equal((await post(firstBody)).status, 200);
   assert.deepEqual(reads.sort(), [urgent.data.email_id, routine.data.email_id].sort());
-  const { rows: [stored] } = await db.pool.query('SELECT subject,preview FROM jev_priority_messages WHERE provider_id=$1', [routine.data.email_id]);
-  assert.deepEqual([stored?.subject, stored?.preview], ['', null]);
+  const { rows: [stored] } = await db.pool.query('SELECT id,subject,preview FROM jev_priority_messages WHERE provider_id=$1', [routine.data.email_id]);
+  assert.deepEqual([stored.subject, stored.preview], ['Monthly digest', null]);
+  const summary = await inbox.snapshot();
+  assert.equal(summary.routineCount, 1);
+  assert.equal('routineMessages' in summary, false);
+  assert.deepEqual((await inbox.snapshot(true)).routineMessages, [{ id: stored.id, subject: 'Monthly digest', receivedAt }]);
 });
 
 test('a queued event survives service reconstruction and a fetched email for another alias stays private', async t => {
