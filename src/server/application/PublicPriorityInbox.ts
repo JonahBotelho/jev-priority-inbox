@@ -10,6 +10,7 @@ import { type Classifier, DemoMailbox } from '../adapters/Providers.js';
 import type { ResendMailbox } from '../adapters/ResendMailbox.js';
 import type { PostgresInbox } from '../infrastructure/PostgresInbox.js';
 import { ChangeEvents } from './ChangeEvents.js';
+import { RoutineSubjectRecovery } from './RoutineSubjectRecovery.js';
 import { Worker } from './Worker.js';
 
 const recipient = { role: 'On-call service owner', timeZone: 'America/Vancouver' };
@@ -57,6 +58,15 @@ export class PublicPriorityInbox {
   }
 
   async run(signal: AbortSignal): Promise<void> {
+    if (!this.receiving) return this.watchDeliveries(signal);
+    const recovery = new RoutineSubjectRecovery(this.repository, this.receiving);
+    await Promise.all([
+      this.watchDeliveries(signal),
+      recovery.run(this.mailbox, signal).catch(() => console.error(en.routineSubjectRecoveryFailed)),
+    ]);
+  }
+
+  private async watchDeliveries(signal: AbortSignal): Promise<void> {
     while (!signal.aborted) {
       const version = this.deliveryVersion;
       try {

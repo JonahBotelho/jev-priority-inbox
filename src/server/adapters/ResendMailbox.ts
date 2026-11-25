@@ -41,7 +41,7 @@ export class ResendMailbox implements MailboxProvider {
     return { status: 200, delivery: { id: data.email_id.toLowerCase(), receivedAt: new Date(data.created_at).toISOString() } };
   }
 
-  async fetch(id: string, signal: AbortSignal): Promise<Message> {
+  private async verifiedEmail(id: string, signal: AbortSignal) {
     if (!emailIdPattern.test(id)) throw new ProviderError(false);
     const { data, error } = await this.client.emails.receiving.get(id, { html_format: 'cid' }, { signal });
     if (error) {
@@ -49,6 +49,16 @@ export class ResendMailbox implements MailboxProvider {
       throw new ProviderError(status == null || status === 429 || status >= 500);
     }
     if (data?.id?.toLowerCase() !== id || !this.isRecipient(data.received_for)) throw new ProviderError(false);
+    return data;
+  }
+
+  async fetchSubject(id: string, signal: AbortSignal): Promise<string> {
+    const email = await this.verifiedEmail(id, signal);
+    return email.subject ?? '';
+  }
+
+  async fetch(id: string, signal: AbortSignal): Promise<Message> {
+    const data = await this.verifiedEmail(id, signal);
     const text = data.text?.trim() || convert(data.html ?? '', {
       wordwrap: false,
       selectors: [

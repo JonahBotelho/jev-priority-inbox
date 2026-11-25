@@ -27,7 +27,7 @@ Returns an inbox snapshot. Each card has a stable ID, a confirmed tier, a subjec
 
 Emergency comes first, then Urgent. Within a tier the API orders by descending priority score, then newer arrival time and stable ID. Both priority cards and the Routine count cover unhandled, completed decisions with stored Jev probabilities for the active public mailbox.
 
-Opening **Lower-priority emails** requests `GET /v1/priority?include=routine`. This adds `routineMessages` to the same snapshot. Each entry contains only `id`, `subject` and `receivedAt`, ordered by newest arrival then stable ID. A `null` subject identifies an older decision whose title was never saved. The default response includes only the count for this group.
+Opening **Lower-priority emails** requests `GET /v1/priority?include=routine`. This adds `routineMessages` to the same snapshot. Each entry contains only `id`, `subject` and `receivedAt`, ordered by newest arrival then stable ID. The API tries to recover missing titles from Resend at startup. A `null` subject means the title is still unavailable. The default response includes only the count for this group.
 
 `pending` includes in-flight reviews. When Resend is active, the snapshot includes `receivingAddress` and only that mailbox's decisions. An open, visible live inbox refreshes every 30 seconds when idle and every 1.5 seconds during review. Returning to the tab refreshes it immediately. Failed deliveries become eligible for a new review when the configured API restarts. Reads incur no inference calls.
 
