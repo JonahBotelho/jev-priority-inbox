@@ -6,7 +6,7 @@ The same reader displays fictional samples by default and real deliveries to `pr
 
 ## Email classifier demo
 
-[Signing in](https://jev-priority-inbox-client.onrender.com/login) opens the [email classifier](https://jev-priority-inbox-client.onrender.com/app) for regular users and the read-only [Registered users directory](https://jev-priority-inbox-client.onrender.com/admin) for administrators. [Creating an account](https://jev-priority-inbox-client.onrender.com/register) opens the public inbox at `/`. On the public inbox, signed-in administrators see **Registered users** beside **Try the email demo**.
+Regular users land on the public inbox at `/` after [signing in](https://jev-priority-inbox-client.onrender.com/login) or [creating an account](https://jev-priority-inbox-client.onrender.com/register). Select [**Try the email demo**](https://jev-priority-inbox-client.onrender.com/app) to open the classifier. Administrators land on the read-only [Registered users directory](https://jev-priority-inbox-client.onrender.com/admin) after sign-in and see **Registered users** beside the demo link on the public inbox.
 
 The demo classifies a subject and message without sending an email. It shows Jev’s decision, your classification history and API usage. A valid submission counts once, including a provider failure. The portal saves the result and duration without saving the submitted email text.
 
