@@ -1,6 +1,7 @@
 // Text for the public, read-only demo inbox.
 export const priorityInboxText = {
   heading: 'Priority inbox',
+  tryEmailDemo: 'Try the email demo',
   addressLabel: 'Inbox address',
   address: 'priority@example.test',
   receivingAddress: 'priority@ionooambea.resend.app',

@@ -1,7 +1,6 @@
 // One public reader for demo samples and delivered mail.
 import { useEffect, useState } from 'react';
 import { en } from '../locales/en.js';
-import { portalText } from '../locales/portal.js';
 import { priorityInboxText as labels } from '../locales/priorityInbox.js';
 import type { Card, PublicInboxSnapshot } from '../shared/types.js';
 import { InboxApi } from './InboxApi.js';
@@ -88,7 +87,7 @@ export function PriorityInbox() {
   return <div className="inbox-page">
     <header className="inbox-masthead">
       <div className="inbox-width wordmark"><span className="brand-stamp" aria-hidden="true"><i /></span>{en.brand}
-        <a className="inbox-portal-link" href="/login">{portalText.portal}</a></div>
+        <a className="inbox-portal-link" href="/app">{labels.tryEmailDemo}</a></div>
     </header>
     <main className="inbox-width">
       <section className="address-panel" aria-label={labels.addressLabel}>
