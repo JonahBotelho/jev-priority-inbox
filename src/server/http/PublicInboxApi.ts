@@ -13,8 +13,8 @@ export function createPublicInboxApi(inbox: PublicPriorityInbox, portal?: Portal
   });
   // The listener starts after the migration. Frequent Render health checks need no database query.
   app.get('/v1/health', (_request, response) => response.json({ status: 'ok', storage: 'postgresql' }));
-  app.get('/v1/priority', async (_request, response) => {
-    try { response.json(await inbox.snapshot()); }
+  app.get('/v1/priority', async (request, response) => {
+    try { response.json(await inbox.snapshot(request.query.include === 'routine')); }
     catch { response.sendStatus(503); }
   });
   app.post('/v1/inbound', express.raw({ type: 'application/json', limit: '256kb', inflate: false }), async (request, response) => {

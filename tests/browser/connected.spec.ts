@@ -12,6 +12,12 @@ for (const path of ['/demo', '/inbox']) {
     await expect(page.getByRole('heading', { name: labels.heading })).toBeVisible();
     // The loopback fixture reviews these messages without using a paid provider.
     await expect(page.getByText(en.fixtures.outage.subject, { exact: true })).toBeVisible();
+    const routine = page.getByRole('button', { name: labels.routineHeading });
+    await expect(routine.locator('.routine-count')).toHaveText('3');
+    await expect(page.getByText(en.fixtures.digest.subject)).toHaveCount(0);
+    await routine.click();
+    await expect(page.getByText(en.fixtures.digest.subject, { exact: true })).toBeVisible();
+    await expect(page.getByText(en.fixtures.digest.text, { exact: true })).toHaveCount(0);
     await expect(page.locator('form, input[type=password]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });

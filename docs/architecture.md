@@ -24,7 +24,7 @@ flowchart LR
   API -->|priority cards and review status| Browser
 ```
 
-In sample mode the mailbox namespace includes a digest of the pinned model, rubric, recipient context and fictional inputs. In receiving mode the worker uses a separate namespace for the real address. A verified webhook wakes the worker. It fetches the original by Resend email ID and checks the delivery envelope again. The worker keeps links, email addresses, quoted history, and signatures out of model inputs and public previews using the text cleanup rules. Routine real mail retains its decision and deduplication metadata with an empty subject and preview.
+In sample mode the mailbox namespace includes a digest of the pinned model, rubric, recipient context and fictional inputs. In receiving mode the worker uses a separate namespace for the real address. A verified webhook wakes the worker. It fetches the original by Resend email ID and checks the delivery envelope again. The worker cleans links, email addresses, quoted history, and signatures from model inputs and public mail text. Routine real mail retains its cleaned subject and arrival time alongside the decision and deduplication metadata. Its body and preview are discarded. An expanded group reads the stored subjects and arrival times from PostgreSQL.
 
 The priority policy admits an email when Emergency plus Urgent probability is at least 0.80. An admitted email is Emergency at an Emergency probability of at least 0.75. Other admitted emails are Urgent. The public read path uses the model's stored tier and excludes records without probabilities.
 

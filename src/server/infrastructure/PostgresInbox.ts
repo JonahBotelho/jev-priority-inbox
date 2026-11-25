@@ -3,9 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Pool, type PoolClient } from 'pg';
 import { en } from '../../locales/en.js';
-import type { Card, Probabilities, Snapshot, Tier } from '../../shared/types.js';
+import type { Card, Probabilities, RoutineEmail, Tier } from '../../shared/types.js';
 import { MessagePreview } from '../application/MessagePreview.js';
 import type { Job, PriorityQueue } from './PriorityQueue.js';
+
+interface InboxRow {
+  cards: Card[];
+  routineCount: number;
+  routineMessages: RoutineEmail[];
+  pending: number;
+  failed: number;
+}
+
+function withUtcArrival<T extends { receivedAt: string }>(email: T): T {
+  return { ...email, receivedAt: new Date(email.receivedAt).toISOString() };
+}
 
 export class PostgresInbox implements PriorityQueue {
   private constructor(readonly pool: Pool) {}
@@ -86,15 +98,23 @@ export class PostgresInbox implements PriorityQueue {
     return rows[0].pending;
   }
 
-  async snapshot(mailbox: string): Promise<Snapshot> {
-    // One statement gives the cards and queue counts the same view of concurrent worker commits.
-    const { rows } = await this.pool.query<{ cards: Card[]; pending: number; failed: number }>(`SELECT
-      (SELECT COALESCE(json_agg(json_build_object('id',id,'tier',tier,'subject',subject,'preview',preview,'receivedAt',received_at)
-        ORDER BY (tier='Emergency') DESC,score DESC,received_at DESC,id), '[]') FROM jev_priority_messages
-        WHERE mailbox=$1 AND status='complete' AND NOT handled AND probabilities IS NOT NULL AND tier IN ('Emergency','Urgent')) AS cards,
+  async snapshot(mailbox: string, includeRoutine = false) {
+    // Read both groups and their counts from the same set of committed decisions.
+    const { rows } = await this.pool.query<InboxRow>(`WITH inbox AS (
+      SELECT id, status, tier, score, received_at, subject, preview,
+        (status='complete' AND NOT handled AND probabilities IS NOT NULL) AS reviewed
+      FROM jev_priority_messages WHERE mailbox=$1
+    ) SELECT
+      COALESCE(json_agg(json_build_object('id',id,'tier',tier,'subject',subject,'preview',preview,'receivedAt',received_at)
+        ORDER BY (tier='Emergency') DESC,score DESC,received_at DESC,id)
+        FILTER (WHERE reviewed AND tier IN ('Emergency','Urgent')), '[]') AS cards,
+      count(*) FILTER (WHERE reviewed AND tier='Routine')::integer AS "routineCount",
+      COALESCE(json_agg(json_build_object('id',id,'subject',NULLIF(subject,''),'receivedAt',received_at)
+        ORDER BY received_at DESC,id) FILTER (WHERE $2::boolean AND reviewed AND tier='Routine'), '[]') AS "routineMessages",
       count(*) FILTER (WHERE status IN ('pending','processing'))::integer AS pending,
-      count(*) FILTER (WHERE status='failed')::integer AS failed FROM jev_priority_messages WHERE mailbox=$1`, [mailbox]);
-    const { cards, pending, failed } = rows[0];
-    return { cards: cards.map(card => ({ ...card, receivedAt: new Date(card.receivedAt).toISOString() })), processing: { pending, failed } };
+      count(*) FILTER (WHERE status='failed')::integer AS failed FROM inbox`, [mailbox, includeRoutine]);
+    const { cards, routineCount, routineMessages, pending, failed } = rows[0];
+    return { cards: cards.map(withUtcArrival), routineCount, processing: { pending, failed },
+      ...(includeRoutine && { routineMessages: routineMessages.map(withUtcArrival) }) };
   }
 }

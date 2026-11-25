@@ -52,7 +52,7 @@ body { margin: 0; }
 .priority-email summary:hover, .priority-email[open] { background: #f6f9f5; }
 .priority-emails li:first-child summary { border-radius: 14px 14px 0 0; }
 .priority-emails li:last-child summary { border-radius: 0 0 14px 14px; }
-.priority-email summary:focus-visible, .inbox-status button:focus-visible { outline: 3px solid #197367; outline-offset: -4px; }
+.priority-email summary:focus-visible, .routine-toggle:focus-visible, .inbox-status button:focus-visible { outline: 3px solid #197367; outline-offset: -4px; }
 .priority-tag {
   display: inline-flex; align-items: center; gap: 7px; justify-self: start; border-radius: 6px;
   padding: 5px 9px; font-size: 12px; font-weight: 650; line-height: 1.25; white-space: nowrap;
@@ -72,6 +72,26 @@ body { margin: 0; }
 .priority-emails + .inbox-status { margin-top: 12px; }
 .inbox-status button { border: 1px solid #a9bfb3; background: #f5faf5; color: #24564a; font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 8px 13px; }
 
+.routine-group { margin-top: 16px; color: #53615a; background: #f0f2ed; border: 1px solid #dce2d9; border-radius: 12px; }
+.routine-group h2 { margin: 0; font-size: 14px; font-weight: 550; }
+.routine-toggle {
+  width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 12px 24px;
+  border: 0; border-radius: 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left;
+}
+.routine-toggle:hover { background: #e8ece5; }
+.routine-toggle::before {
+  content: ''; width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg);
+}
+.routine-toggle[aria-expanded="true"]::before { transform: rotate(45deg); }
+.routine-count { margin-inline-start: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+.routine-list { list-style: none; margin: 0; padding: 0 24px 5px; }
+.routine-list li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding-block: 12px;
+  border-top: 1px solid #dce2d9; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere;
+}
+.routine-list .email-time { display: flex; gap: 5px; }
+.routine-group .inbox-status { padding-block: 8px 16px; border: 0; background: transparent; }
+
 @media (max-width: 640px) {
   .inbox-width { width: calc(100% - 32px); }
   .wordmark { min-height: 54px; font-size: 23px; }
@@ -89,4 +109,5 @@ body { margin: 0; }
   .email-copy { grid-row: 2; grid-column: 1 / -1; }
   .email-text { padding: 0 16px 18px; }
   .inbox-status { padding: 16px; }
+  .routine-toggle, .routine-list { padding-inline: 16px; }
 }

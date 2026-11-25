@@ -34,12 +34,15 @@ test('only reviewed priority emails appear, ranked by the model; repeated reads 
     [Fixtures.get('signoff').subject, 'Urgent', Fixtures.get('signoff').text],
   ]);
   assert.deepEqual(snapshot.processing, { pending: 0, failed: 0 });
+  assert.equal(snapshot.routineCount, Fixtures.names.length - 2);
+  assert.deepEqual((await inbox.snapshot(true)).routineMessages?.map(email => email.subject),
+    Fixtures.names.filter(name => name !== 'sale' && name !== 'signoff').map(name => Fixtures.get(name).subject));
   assert.equal((await database.pool.query('SELECT status FROM jev_priority_messages WHERE id=$1', [privateJob.id])).rows[0].status, 'processing');
   await database.pool.query("UPDATE jev_priority_messages SET tier='Emergency', probabilities=NULL WHERE provider_id='digest'");
   assert.deepEqual((await inbox.snapshot()).cards, snapshot.cards);
   const reopened = await PublicPriorityInbox.open(database, classifier);
   await reopened.reviewPending(new AbortController().signal);
-  assert.deepEqual(await reopened.snapshot(), snapshot);
+  assert.deepEqual(await reopened.snapshot(), { ...snapshot, routineCount: snapshot.routineCount - 1 });
   assert.equal(calls, Fixtures.names.length);
 });
 
@@ -77,7 +80,10 @@ test('the public endpoint needs no account, credentials or Jev key to read its r
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
   assert.equal(response.headers.get('set-cookie'), null);
-  assert.deepEqual(await response.json(), { cards: [], processing: { pending: Fixtures.names.length, failed: 0 }, reviewAvailable: false });
+  const summary = { cards: [], routineCount: 0, processing: { pending: Fixtures.names.length, failed: 0 }, reviewAvailable: false };
+  assert.deepEqual(await response.json(), summary);
+  const details = await fetch(base + '/priority?include=routine&mailbox=other');
+  assert.deepEqual(await details.json(), { ...summary, routineMessages: [] });
   for (const path of ['/auth/me', '/admin/dashboard', '/usage/me', '/classifications']) {
     assert.equal((await fetch(base + path)).status, 401);
   }
