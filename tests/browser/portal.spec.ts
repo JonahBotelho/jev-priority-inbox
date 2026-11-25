@@ -21,6 +21,9 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await page.getByLabel(text.email, {exact:true}).fill(email);
   await page.getByLabel(text.password, {exact:true}).fill('member-test-password');
   await page.getByRole('button', {name:text.register}).click();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('heading', { name: inboxText.heading })).toBeVisible();
+  await demoLink.click();
   await expect(page).toHaveURL('/app');
   await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
