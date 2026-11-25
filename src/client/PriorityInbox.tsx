@@ -1,13 +1,51 @@
 // One public reader for demo samples and delivered mail.
 import { useEffect, useState } from 'react';
 import { en } from '../locales/en.js';
+import { portalText } from '../locales/portal.js';
 import { priorityInboxText as labels } from '../locales/priorityInbox.js';
+import type { PortalUser } from '../shared/portal.js';
 import type { Card, PublicInboxSnapshot, RoutineEmail } from '../shared/types.js';
 import { InboxApi } from './InboxApi.js';
 import './priority-inbox.css';
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+
+function InboxNavigation() {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let pendingCheck: AbortController | undefined;
+
+    async function refreshRole() {
+      pendingCheck?.abort();
+      if (document.hidden) {
+        setIsAdmin(false);
+        return;
+      }
+      const request = new AbortController();
+      pendingCheck = request;
+      try {
+        const account = await InboxApi.request<PortalUser>('/auth/me', 'GET', undefined, request.signal);
+        if (!request.signal.aborted) setIsAdmin(account.role === 'admin');
+      } catch {
+        if (!request.signal.aborted) setIsAdmin(false);
+      }
+    }
+
+    void refreshRole();
+    document.addEventListener('visibilitychange', refreshRole);
+    return () => {
+      pendingCheck?.abort();
+      document.removeEventListener('visibilitychange', refreshRole);
+    };
+  }, []);
+
+  return <nav className="inbox-portal-nav" aria-label={portalText.portal}>
+    <a href="/app">{labels.tryEmailDemo}</a>
+    {isAdmin && <a className="inbox-admin-link" href="/admin">{portalText.accounts}</a>}
+  </nav>;
+}
 
 function EmailTime({ receivedAt }: { receivedAt: string }) {
   const received = new Date(receivedAt);
@@ -114,7 +152,7 @@ export function PriorityInbox() {
   return <div className="inbox-page">
     <header className="inbox-masthead">
       <div className="inbox-width wordmark"><span className="brand-stamp" aria-hidden="true"><i /></span>{en.brand}
-        <a className="inbox-portal-link" href="/app">{labels.tryEmailDemo}</a></div>
+        <InboxNavigation /></div>
     </header>
     <main className="inbox-width">
       <section className="address-panel" aria-label={labels.addressLabel}>

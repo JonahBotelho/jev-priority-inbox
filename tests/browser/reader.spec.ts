@@ -12,10 +12,11 @@ const reviewed: PublicInboxSnapshot = {
   routineCount: 0, reviewAvailable: true, processing: { pending: 0, failed: 0 },
 };
 
-test('a visitor sees the demo address and tagged emails and can open a message with the keyboard', async ({ page }) => {
+test('a visitor can read the public inbox with the keyboard even if the session check fails', async ({ page }) => {
   const calls: string[] = [];
   page.on('request', request => { if (request.url().includes('/v1/')) calls.push(request.method() + ' ' + new URL(request.url()).pathname); });
   await page.route('**/v1/priority', route => route.fulfill({ json: reviewed }));
+  await page.route('**/v1/auth/me', route => route.fulfill({ status: 503, json: {} }));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: labels.heading })).toBeVisible();
   await expect(page.getByText(labels.address, { exact: true })).toBeVisible();
@@ -28,8 +29,8 @@ test('a visitor sees the demo address and tagged emails and can open a message w
   await expect(first.locator('.email-text')).toBeVisible();
   await expect(first.locator('.email-text')).toHaveText(en.fixtures.outage.text);
   await expect(page.locator('form, input[type=password]')).toHaveCount(0);
-  expect(calls.length).toBeGreaterThan(0);
-  expect(calls.every(call => call === 'GET /v1/priority')).toBe(true);
+  await expect(page.getByRole('navigation').getByRole('link')).toHaveText([labels.tryEmailDemo]);
+  expect(new Set(calls)).toEqual(new Set(['GET /v1/priority', 'GET /v1/auth/me']));
 });
 
 test('the list updates when Jev finishes reviewing samples', async ({ page }) => {

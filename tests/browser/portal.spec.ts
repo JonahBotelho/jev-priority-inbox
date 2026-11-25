@@ -7,8 +7,13 @@ import { priorityInboxText as inboxText } from '../../src/locales/priorityInbox.
 test('a member registers, classifies an email, reviews usage and signs back in', async ({page}) => {
   const email = 'browser-member@example.test';
   const demoLink = page.getByRole('link', { name: inboxText.tryEmailDemo });
-  await page.goto('/');
+  const directoryLink = page.getByRole('link', { name: text.accounts });
+  await Promise.all([
+    page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.status() === 401),
+    page.goto('/'),
+  ]);
   await expect(demoLink).toHaveAttribute('href', '/app');
+  await expect(directoryLink).toHaveCount(0);
   await demoLink.click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: text.loginHeading })).toBeVisible();
@@ -16,10 +21,8 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await page.getByLabel(text.email, {exact:true}).fill(email);
   await page.getByLabel(text.password, {exact:true}).fill('member-test-password');
   await page.getByRole('button', {name:text.register}).click();
-  await expect(page).toHaveURL('/');
-  await expect(page.getByRole('heading', { name: inboxText.heading })).toBeVisible();
-  await demoLink.click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
   await expect(page.locator('.portal-usage strong')).toHaveText('0');
   await expect(page.getByRole('region', { name: text.netlifyCredits })).toContainText(text.noCreditCheck);
@@ -35,13 +38,17 @@ test('a member registers, classifies an email, reviews usage and signs back in',
   await page.getByLabel(text.email).fill(email);
   await page.getByLabel(text.password).fill('member-test-password');
   await page.getByRole('button', {name:text.signIn}).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/app');
   await page.goto('/login');
-  await expect(page).toHaveURL('/');
-  await demoLink.click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL('/app');
   await expect(page.locator('.portal-usage strong')).toHaveText('1');
   await expect(page.locator('.portal-history')).toContainText('Urgent');
+  await Promise.all([
+    page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.ok()),
+    page.getByRole('link', { name: text.publicInbox }).click(),
+  ]);
+  await expect(demoLink).toBeVisible();
+  await expect(directoryLink).toHaveCount(0);
 });
 
 test('usage shows a verified zero team balance and the original check time', async ({page}) => {
@@ -60,16 +67,24 @@ test('usage shows a verified zero team balance and the original check time', asy
   await expect(team.locator('time')).toContainText('2026');
 });
 
-test('an administrator lands on the public inbox and can open the registered users list', async ({page}) => {
+test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
   await page.goto('/login');
   await page.getByLabel(text.email).fill('admin@example.test');
   await page.getByLabel(text.password).fill('browser-test-only');
   await page.getByRole('button', {name:text.signIn}).click();
-  await expect(page).toHaveURL('/');
-  await page.getByRole('link', { name: inboxText.tryEmailDemo }).click();
-  await page.getByRole('link', { name: text.accounts }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL('/admin');
   await expect(page.getByRole('heading', {name:text.accounts})).toBeVisible();
   await expect(page.getByRole('cell', {name:'admin@example.test', exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByRole('button')).toHaveCount(0);
+  await page.getByRole('link', { name: text.service }).click();
+  await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.getByRole('link', { name: text.publicInbox }).click();
+  const navigation = page.getByRole('navigation', { name: text.portal });
+  await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.accounts]);
+  const directoryLink = navigation.getByRole('link', { name: text.accounts });
+  await expect(directoryLink).toHaveAttribute('href', '/admin');
+  await directoryLink.click();
+  await expect(page).toHaveURL('/admin');
+  await expect(page.getByRole('heading', { name: text.accounts })).toBeVisible();
 });
