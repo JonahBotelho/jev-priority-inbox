@@ -30,7 +30,7 @@ try {
     : ['--import', 'tsx', '--test', 'tests/*.test.ts'];
   const suite = spawn(process.execPath, [...args, ...process.argv.slice(3)], {
     stdio: 'inherit', env: { ...process.env, JEV_TEST_PG_URL: url, DATABASE_URL: url,
-      JEV_FUNCTION_URL: '', JEV_FUNCTION_SECRET: '', RESEND_API_KEY: '', RESEND_WEBHOOK_SECRET: '' },
+      JEV_FUNCTION_URL: '', JEV_FUNCTION_SECRET: '', TYPESAFE_API_KEY: '', TYPESAFE_BASE_URL: '', RESEND_API_KEY: '', RESEND_WEBHOOK_SECRET: '' },
   });
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => suite.kill(signal));
   const [code] = await once(suite, 'exit');

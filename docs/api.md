@@ -47,6 +47,8 @@ Browser requests to these routes use `credentials: 'include'` and the configured
 | `POST /v1/auth/login` | Send the same fields. Returns the signed-in account. |
 | `GET /v1/auth/me` · `POST /v1/auth/logout` | Read the signed-in account or revoke the session and clear its cookie. |
 | `POST /v1/classify` | Signed-in users submit `subject` and `text`. JSON includes `id`, `tier`, `score`, `model`, `provider` and `durationMs`. Invalid input returns `400`. A provider failure returns `502` and a missing classifier returns `503`. |
+| `POST /v1/demo/inference` | Send `subject` and `text` to the authenticated Jev relay. It returns `{ inference, signature }` as soon as TypeSafe responds. The inference contains an ID, account ID, timestamp, model, probabilities, duration and available input/output token counts. Invalid input returns `400`, a provider failure `502` and missing configuration `503`. |
+| `POST /v1/demo/receipts` | Send the signed inference response under the same account. A `204` confirms the usage and history row is durable, including repeat submissions of the same receipt. An invalid receipt returns `400`. |
 | `GET /v1/usage/me` · `GET /v1/classifications` | Return the caller's request count, success count and last request time, or their latest 50 successful decisions. Valid failed submissions count toward usage. Reads and invalid submissions do not. |
 | `GET /v1/admin/dashboard` | Administrators can read registered accounts, their roles, registration dates and request counts. |
 

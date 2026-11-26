@@ -23,6 +23,8 @@ services:
         sync: false
       - key: JEV_FUNCTION_SECRET
         sync: false
+      - key: TYPESAFE_API_KEY
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_WEBHOOK_SECRET

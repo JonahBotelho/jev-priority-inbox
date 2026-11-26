@@ -4,7 +4,7 @@ import { ProviderError } from '../adapters/Providers.js';
 import { maxMessageLength } from '../../shared/jev.js';
 import { priorityInboxText } from '../../locales/priorityInbox.js';
 import type { ClassificationInput, Probabilities, Tier } from '../../shared/types.js';
-import { PriorityPolicy } from '../domain/PriorityPolicy.js';
+import { PriorityPolicy } from '../../shared/PriorityPolicy.js';
 import type { Job, PriorityQueue } from '../infrastructure/PriorityQueue.js';
 import { ChangeEvents } from './ChangeEvents.js';
 import { MessagePreparation } from './MessagePreparation.js';

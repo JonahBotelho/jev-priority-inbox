@@ -1,7 +1,8 @@
 // Portal accounts, revocable sessions and per-user classification receipts in the existing Neon database.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import type { PortalDashboard, PortalHistory, PortalRole, PortalUsage, PortalUser } from '../../shared/portal.js';
+import { demoHistoryEntry, type DemoAttempt, type DemoInference, type PortalDashboard, type PortalHistory,
+  type PortalRole, type PortalUsage, type PortalUser } from '../../shared/portal.js';
 import type { Tier } from '../../shared/types.js';
 import type { PostgresInbox } from './PostgresInbox.js';
 
@@ -69,6 +70,16 @@ export class PostgresPortal {
   async finishRequest(id: string, status: number, duration: number, decision?: { tier: Tier; score: number; model: string }): Promise<void> {
     await this.database.pool.query(`UPDATE api_usage SET status=$2,duration_ms=$3,tier=$4,score=$5,model=$6
       WHERE id=$1 AND status IS NULL`, [id, status, duration, decision?.tier, decision?.score, decision?.model]);
+  }
+
+  async recordDemo(attempt: DemoAttempt | DemoInference, status: number): Promise<void> {
+    const { id, userId, createdAt, durationMs } = attempt;
+    const inference = 'probabilities' in attempt ? attempt : undefined;
+    const decision = inference && demoHistoryEntry(inference);
+    // The relay and browser can deliver the same receipt, including after a reload or lost acknowledgement.
+    await this.database.pool.query(`INSERT INTO api_usage (id,user_id,endpoint,created_at,duration_ms,status,tier,score,model,input_tokens,output_tokens)
+      VALUES ($1,$2,'/v1/demo/inference',$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
+    [id, userId, createdAt, durationMs, status, decision?.tier, decision?.score, decision?.model, inference?.inputTokens, inference?.outputTokens]);
   }
 
   async usage(userId: string): Promise<PortalUsage> {

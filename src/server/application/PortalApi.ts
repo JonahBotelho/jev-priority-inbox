@@ -5,14 +5,16 @@ import { portalText as labels } from '../../locales/portal.js';
 import { jevModel, readClassificationInput } from '../../shared/jev.js';
 import type { PortalUser } from '../../shared/portal.js';
 import type { Classifier } from '../adapters/Providers.js';
-import { PriorityPolicy } from '../domain/PriorityPolicy.js';
+import { TypeSafeJev } from '../adapters/TypeSafeJev.js';
+import { PriorityPolicy } from '../../shared/PriorityPolicy.js';
 import type { PostgresInbox } from '../infrastructure/PostgresInbox.js';
 import { PostgresPortal } from '../infrastructure/PostgresPortal.js';
 import { PortalAuth } from './PortalAuth.js';
+import { BrowserDemoApi } from './BrowserDemoApi.js';
 
 const productionApi = 'https://jev-priority-inbox-api.onrender.com';
 const productionClient = 'https://jev-priority-inbox-client.onrender.com';
-const paths = ['/auth', '/classify', '/classifications', '/usage', '/admin'];
+const paths = ['/auth', '/classify', '/classifications', '/usage', '/admin', '/demo'];
 
 export class PortalApi {
   readonly router = Router();
@@ -21,13 +23,15 @@ export class PortalApi {
   private resetAttemptsAt = 0;
 
   private constructor(private readonly store: PostgresPortal, private readonly auth: PortalAuth,
-    private readonly adminEmail: string, private readonly origins: Set<string>, private readonly classifier?: Classifier) {
+    private readonly adminEmail: string, private readonly origins: Set<string>, demo: BrowserDemoApi, private readonly classifier?: Classifier) {
     this.router.use(paths, this.browserAccess, express.json({ limit: '128kb' }));
     this.router.post('/auth/register', this.register);
     this.router.post('/auth/login', this.login);
     this.router.post('/auth/logout', this.logout);
     this.router.get('/auth/me', this.requireUser, (_req, res) => res.json(res.locals.user));
     this.router.post('/classify', this.requireUser, this.classify);
+    this.router.post('/demo/inference', this.requireUser, demo.infer);
+    this.router.post('/demo/receipts', this.requireUser, demo.record);
     this.router.get('/usage/me', this.requireUser, async (_req, res) => res.json(await store.usage(res.locals.user.id)));
     this.router.get('/classifications', this.requireUser, async (_req, res) => res.json({ results: await store.history(res.locals.user.id) }));
     this.router.get('/admin/dashboard', this.requireUser, async (_req, res) => {
@@ -64,7 +68,9 @@ export class PortalApi {
     const key = configuredKey ? Buffer.from(configuredKey) : await store.signingKey();
     const auth = new PortalAuth(key, api.protocol === 'https:' || env.NODE_ENV === 'production');
     const adminEmail = env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() ?? '';
-    const portal = new PortalApi(store, auth, adminEmail, origins, classifier);
+    const apiKey = env.TYPESAFE_API_KEY?.trim();
+    const demo = new BrowserDemoApi(store, key, apiKey ? new TypeSafeJev(apiKey, env.TYPESAFE_BASE_URL?.trim() || undefined) : undefined);
+    const portal = new PortalApi(store, auth, adminEmail, origins, demo, classifier);
     if (adminEmail && env.INITIAL_ADMIN_PASSWORD) await portal.bootstrapAdmin(env.INITIAL_ADMIN_PASSWORD);
     return portal;
   }
