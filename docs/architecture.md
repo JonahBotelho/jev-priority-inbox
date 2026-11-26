@@ -18,6 +18,13 @@ flowchart LR
   Browser -->|credentialed portal requests| Auth[Account and role checks inside Render API]
   Auth -->|accounts and revocable sessions| DB
   Auth -->|signed-in classification| Fn
+  Browser -->|typed demo email| Relay[Authenticated demo relay on Render]
+  Relay -->|native API key| TypeSafe[TypeSafe System One]
+  TypeSafe -->|Jev probabilities| Relay
+  Relay -->|signed result| Browser
+  Browser -->|apply priority policy and show result| Browser
+  Browser -->|acknowledge signed receipt| Relay
+  Relay -->|one usage and history row per result ID| DB
   Auth -->|personal usage and results| DB
   Auth -->|administrator-only directory| DB
   API -->|read current mailbox| DB
@@ -33,3 +40,5 @@ The database enforces uniqueness on the mailbox and provider ID. Workers claim r
 The browser reads one public inbox. The Render API keeps the Neon connection string and both providers' credentials on the server.
 
 The account portal uses the same Render API process and Neon database. Its tables hold scrypt password hashes, user roles, sessions and per-user classification receipts. Public inbox reads and Resend deliveries are separate from personal API usage. The static client, Render API, Neon and Netlify inference function are independently hosted.
+
+The browser demo sends its draft to the TypeSafe relay after the user submits the form. The relay returns validated Jev probabilities before writing usage. The browser applies the inbox policy, renders the result and posts the signed receipt. Both the relay and the browser can persist the same receipt so closing a tab or losing an acknowledgement does not double-count the attempt. The receipt binds the provider result to its account and excludes the email text.

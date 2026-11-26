@@ -8,9 +8,9 @@ The same reader displays fictional samples by default and real deliveries to `pr
 
 Regular users land on the public inbox at `/` after [signing in](https://jev-priority-inbox-client.onrender.com/login) or [creating an account](https://jev-priority-inbox-client.onrender.com/register). Select [**Try the email demo**](https://jev-priority-inbox-client.onrender.com/app) to open the classifier. Administrators land on the read-only [Registered users directory](https://jev-priority-inbox-client.onrender.com/admin) after sign-in and see **Registered users** beside the demo link on the public inbox.
 
-The demo classifies a subject and message without sending an email. It shows Jev’s decision, your classification history and API usage. A valid submission counts once, including a provider failure. The portal saves the result and duration without saving the submitted email text.
+Enter a subject and message on the left. The browser requests Jev through an authenticated TypeSafe relay, calculates the priority and immediately adds the result to **Jev’s decision** and **Recent classifications**. **Open live email inbox** opens the reader for incoming mail.
 
-**Your API usage** also shows the last manually verified Netlify team credit balance and the time it was checked. To refresh it, read **Usage & billing → Credit balance** for the team hosting the Jev function. In the Neon SQL Editor, replace `<amount>` with that reading and run `INSERT INTO netlify_credit_checks (remaining_credits) VALUES (<amount>);` at the time of the check. When recording an earlier reading, supply its original `checked_at` timestamp with a time zone. The portal reads the latest observation on its next usage request. [Netlify credit balance guide](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/monitor-usage-for-credit-based-plans/)
+The API records the status, duration, decision and available token counts in Neon. Each valid attempt counts once. The browser retries unconfirmed receipts in the background and when you reconnect or reopen the demo. Receipts contain only result metadata.
 
 Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` together on the API service to create the initial administrator. Use an unused address. Restarts preserve existing accounts and passwords. Public registrations always receive the user role. For another frontend host, set `CLIENT_ORIGIN` to its exact origin. An existing `APP_JWT_SECRET` of at least 32 bytes is supported. Otherwise the API creates a private random signing key in Neon so sessions survive redeploys. Keep credentials and signing keys out of submissions.
 
@@ -23,7 +23,7 @@ npm ci
 cp -n .env.example .env
 ```
 
-In the server's `.env`, set `DATABASE_URL` to a development PostgreSQL connection string. A local example after running `createdb jev_inbox` is `postgresql://localhost/jev_inbox`. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` to enable classification. Run `npm run dev`, then open `http://localhost:5173`. The API runs on port 8000.
+In the server's `.env`, set `DATABASE_URL` to a development PostgreSQL connection string. A local example after running `createdb jev_inbox` is `postgresql://localhost/jev_inbox`. Set `TYPESAFE_API_KEY` for the browser demo and `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` for inbox reviews. Run `npm run dev`, then open `http://localhost:5173`. The API runs on port 8000.
 
 In sample mode the API queues nine fictional deliveries. In receiving mode it queues each verified Resend email ID once. PostgreSQL stores the queue and Jev's decisions. Refreshing the page reads the saved results.
 
@@ -44,7 +44,7 @@ The [Resend adapter](src/server/adapters/ResendMailbox.ts) checks the actual del
 
 ## Deploy
 
-- **Render API and client.** [render.yaml](render.yaml) configures the Node web service and the static site. Set `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` on the API. On the client, set `VITE_API_URL` to the API origin and redeploy after changing it. The static publish directory is `dist/client`.
+- **Render API and client.** [render.yaml](render.yaml) configures both services. Set a native `TYPESAFE_API_KEY` on **jev-priority-inbox-api** for the demo. The relay calls `https://api.typesafe.ai/v1/systemone` by default. Keep `JEV_FUNCTION_URL` and `JEV_FUNCTION_SECRET` on the API for incoming mail. The static client uses `VITE_API_URL` and publishes `dist/client`. [TypeSafe API reference](https://docs.typesafe.ai/api/system-one)
 - **Storage.** The API uses the server-only `DATABASE_URL` for public inbox receipts and private portal accounts. The [portal schema](db/portal.sql) is applied at startup. The archived connected-mailbox and offline study modules use their own SQLite files.
 - **Netlify Function.** [netlify.toml](netlify.toml) deploys [jev-classify](netlify/functions/jev-classify.ts) from `main` to `isa-term-project`. Set the same `JEV_FUNCTION_SECRET` on the function. Netlify AI Gateway supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL`. Enable AI features, complete a production deploy and allow public access to the production function so Render can reach it. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
 - **Automatic Jev deployments.** The repository owner registers the Netlify SSH public key with read-only access and subscribes the Netlify GitHub webhook to push events with content type `application/json`. [Repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
@@ -64,5 +64,7 @@ npm run test:browser
 The [public reader](src/client/PriorityInbox.tsx), its [styles](src/client/priority-inbox.css), and its [labels](src/locales/priorityInbox.ts) define the page. The [public API](src/server/http/PublicInboxApi.ts) reads the [priority inbox](src/server/application/PublicPriorityInbox.ts). Its [regression tests](tests/public-priority-inbox.test.ts) cover admission, recovery, and isolation from private mail.
 
 The [portal UI](src/client/Portal.tsx) uses [localized copy](src/locales/portal.ts) and a [shared response contract](src/shared/portal.ts). [Navigation tests](tests/portal-navigation.test.ts) cover the [sign-in and role redirects](src/client/PortalNavigation.ts). [PortalApi](src/server/application/PortalApi.ts) uses [PortalAuth](src/server/application/PortalAuth.ts) and [PostgresPortal](src/server/infrastructure/PostgresPortal.ts). [Browser tests](tests/browser/portal.spec.ts) use a [loopback Jev stand-in](tests/browser-jev.ts).
+
+The [browser demo](src/client/ClassifierDemo.tsx) applies the [shared priority policy](src/shared/PriorityPolicy.ts) and [retries receipts](src/client/DemoReceipts.ts). The [relay](src/server/application/BrowserDemoApi.ts) uses the [TypeSafe adapter](src/server/adapters/TypeSafeJev.ts). [Integration tests](tests/browser-demo.test.ts) cover delayed writes, usage and replay.
 
 The optional `npm run compare` command also requires `GEMINI_API_KEY` for the model comparison. See the [API contract](docs/api.md) and [architecture](docs/architecture.md) for the public demo.

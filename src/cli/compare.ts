@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 import { JevClassifier } from '../server/adapters/Providers.js';
 import { Fixtures } from '../server/adapters/Fixtures.js';
-import { PriorityPolicy } from '../server/domain/PriorityPolicy.js';
+import { PriorityPolicy } from '../shared/PriorityPolicy.js';
 import { en } from '../locales/en.js';
 import { urgencyRubric } from '../shared/jev.js';
 

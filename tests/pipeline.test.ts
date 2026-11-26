@@ -10,7 +10,7 @@ import { InboxRepository } from '../src/server/infrastructure/InboxRepository.js
 import { Worker } from '../src/server/application/Worker.js';
 import { ChangeEvents } from '../src/server/application/ChangeEvents.js';
 import { DemoMailbox, DemoClassifier, ProviderError } from '../src/server/adapters/Providers.js';
-import { PriorityPolicy } from '../src/server/domain/PriorityPolicy.js';
+import { PriorityPolicy } from '../src/shared/PriorityPolicy.js';
 import { MessagePreparation } from '../src/server/application/MessagePreparation.js';
 import { en } from '../src/locales/en.js';
 

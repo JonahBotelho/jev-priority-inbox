@@ -1,6 +1,6 @@
-// Admission thresholds and deterministic ordering from the feasibility study.
-import { readUrgencyProbabilities } from '../../shared/jev.js';
-import type { Probabilities, Tier } from '../../shared/types.js';
+// The live inbox and the browser demo use the same admission thresholds and priority score.
+import { readUrgencyProbabilities } from './jev.js';
+import type { Probabilities, Tier } from './types.js';
 
 export class PriorityPolicy {
   decide(probabilities: Probabilities): { tier: Tier; score: number } {

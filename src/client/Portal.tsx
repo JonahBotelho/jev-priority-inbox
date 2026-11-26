@@ -2,16 +2,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
-import { maxMessageLength, maxSubjectLength } from '../shared/jev.js';
-import type { PortalDashboard, PortalDecision, PortalHistory, PortalUsage, PortalUser } from '../shared/portal.js';
+import { ClassifierDemo } from './ClassifierDemo.js';
+import type { PortalDashboard, PortalUser } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 import { signedInDestination } from './PortalNavigation.js';
 import './portal.css';
 
 const timestamp = (value: string) => new Date(value).toLocaleString();
-const creditCheckTime = new Intl.DateTimeFormat(undefined, {
-  year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-});
 const status = (error: unknown) => (error as { status?: number })?.status;
 function errorText(error: unknown): string {
   return error instanceof Error && !(error instanceof TypeError) ? error.message : en.unavailable;
@@ -68,9 +65,9 @@ export function Portal({ path }: { path: string }) {
     <main className="portal-main"><nav className="portal-tabs" aria-label={labels.portal}>
       <a href="/app" aria-current={path === '/app' ? 'page' : undefined}>{labels.service}</a>
       {user.role === 'admin' && <a href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>{labels.accounts}</a>}
-      <a className="portal-inbox-link" href="/">{labels.publicInbox}</a>
+      <a className="portal-inbox-link" href="/">{labels.liveInbox}</a>
     </nav>{error && <p className="portal-error" role="alert">{error}</p>}
-      {path === '/admin' ? <AdminDashboard /> : <Classifier />}
+      {path === '/admin' ? <AdminDashboard /> : <ClassifierDemo userId={user.id} describeError={privateError} />}
     </main>
   </div>;
 }
@@ -104,62 +101,6 @@ function Login({ path }: { path: string }) {
     </form>{error && <p className="portal-error" role="alert">{error}</p>}
     <a className="portal-link-button" href={registering ? '/login' : '/register'}>{registering ? labels.toLogin : labels.toRegister}</a>
   </section></main>;
-}
-
-function Classifier() {
-  const [usage, setUsage] = useState<PortalUsage>();
-  const [history, setHistory] = useState<PortalHistory[]>([]);
-  const [result, setResult] = useState<PortalDecision>();
-  const [error, setError] = useState('');
-  const [readError, setReadError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [revision, refresh] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setReadError('');
-    Promise.all([InboxApi.request<PortalUsage>('/usage/me', 'GET', undefined, controller.signal),
-      InboxApi.request<{ results: PortalHistory[] }>('/classifications', 'GET', undefined, controller.signal)])
-      .then(([summary, records]) => { if (!controller.signal.aborted) { setUsage(summary); setHistory(records.results); } })
-      .catch(cause => { if (!controller.signal.aborted) setReadError(privateError(cause)); });
-    return () => controller.abort();
-  }, [revision]);
-  async function classify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true); setError(''); setResult(undefined);
-    const fields = new FormData(event.currentTarget);
-    try { setResult(await InboxApi.request<PortalDecision>('/classify', 'POST', { subject: fields.get('subject'), text: fields.get('text') })); }
-    catch (cause) { setError(privateError(cause)); }
-    finally { setBusy(false); refresh(n => n + 1); }
-  }
-  return <><h1 className="portal-intro">{labels.classifier}</h1>
-    <div className="portal-content-grid"><section className="portal-card"><form className="portal-form" onSubmit={classify}>
-      <label>{labels.subject}<input name="subject" maxLength={maxSubjectLength} required /></label>
-      <label>{labels.message}<textarea name="text" maxLength={maxMessageLength} rows={7} required /></label>
-      <button disabled={busy}>{busy ? labels.classifying : labels.classify}</button>
-    </form>{error && <p className="portal-error" role="alert">{error}</p>}
-      {result && <div className={`portal-result ${result.tier.toLowerCase()}`} role="status"><h2>{en.tiers[result.tier]}</h2>
-        <p>{labels.result(result.score, result.model, result.durationMs)}</p></div>}
-    </section><aside className="portal-card portal-usage"><h2>{labels.usage}</h2>
-      {usage ? <><strong>{usage.requests}</strong><span>{labels.requests}</span><p>{labels.successful(usage.successful)}</p>
-        <small>{usage.lastRequest ? labels.lastRequest(timestamp(usage.lastRequest)) : labels.noRequests}</small></> : !readError && en.loading}
-      {readError && <div role="alert">{readError} <button className="portal-secondary" onClick={() => refresh(n => n + 1)}>{en.retry}</button></div>}
-      {usage && <section className="portal-credit-balance" aria-labelledby="netlify-credit-heading">
-        <h3 id="netlify-credit-heading">{labels.netlifyCredits}</h3>
-        {usage.netlifyCreditBalance ? <>
-          <p className="portal-credit-value">{usage.netlifyCreditBalance.remaining}</p>
-          <small>{labels.manuallyChecked}<br />
-            <time dateTime={usage.netlifyCreditBalance.checkedAt}>{creditCheckTime.format(new Date(usage.netlifyCreditBalance.checkedAt))}</time>
-          </small>
-        </> : <small>{labels.noCreditCheck}</small>}
-      </section>}
-    </aside></div>
-    <section className="portal-card portal-history"><h2>{labels.history}</h2>
-      {history.length > 0 ? <div className="portal-table-wrap"><table><thead><tr>
-        <th>{labels.priority}</th><th>{labels.score}</th><th>{labels.model}</th><th>{labels.time}</th></tr></thead>
-        <tbody>{history.map(item => <tr key={item.id}><td>{en.tiers[item.tier]}</td><td>{item.score}</td><td>{item.model}</td><td>{timestamp(item.createdAt)}</td></tr>)}</tbody>
-      </table></div> : usage && <p className="portal-muted">{labels.emptyHistory}</p>}
-    </section></>;
 }
 
 function AdminDashboard() {

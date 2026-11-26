@@ -27,13 +27,13 @@ test('a member lands on the public inbox after registration and again after sign
   await expect(page).toHaveURL('/app');
   await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
-  await expect(page.locator('.portal-usage strong')).toHaveText('0');
-  await expect(page.getByRole('region', { name: text.netlifyCredits })).toContainText(text.noCreditCheck);
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+  await expect(page.getByRole('status')).toHaveText(text.awaitingInput);
   await page.getByLabel(text.subject).fill(en.fixtures.signoff.subject);
   await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
   await page.getByRole('button', {name:text.classify}).click();
   await expect(page.getByRole('status')).toContainText('Urgent');
-  await expect(page.locator('.portal-usage strong')).toHaveText('1');
+  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/app$/);
   await page.getByRole('button', {name:text.signOut}).click();
@@ -47,30 +47,70 @@ test('a member lands on the public inbox after registration and again after sign
   await expect(page).toHaveURL('/');
   await demoLink.click();
   await expect(page).toHaveURL('/app');
-  await expect(page.locator('.portal-usage strong')).toHaveText('1');
+  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
   await expect(page.locator('.portal-history')).toContainText('Urgent');
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.ok()),
-    page.getByRole('link', { name: text.publicInbox }).click(),
+    page.getByRole('link', { name: text.liveInbox }).click(),
   ]);
   await expect(demoLink).toBeVisible();
   await expect(directoryLink).toHaveCount(0);
 });
 
-test('usage shows a verified zero team balance and the original check time', async ({page}) => {
-  const checkedAt = '2026-11-10T12:30:00Z';
-  await page.route('**/v1/auth/me', route => route.fulfill({ json: { id: 'member', email: 'member@example.test', role: 'user' } }));
-  await page.route('**/v1/classifications', route => route.fulfill({ json: { results: [] } }));
-  await page.route('**/v1/usage/me', route => route.fulfill({ json: {
-    requests: 7, successful: 7, lastRequest: null, netlifyCreditBalance: { remaining: '0', checkedAt },
-  } }));
+test('the browser renders each Jev decision immediately and retries only its receipt after reload', async ({ page }) => {
+  const registration = await page.request.post('http://127.0.0.1:3101/v1/auth/register', {
+    data: { email: 'live-demo@example.test', password: 'browser-demo-password' },
+  });
+  expect(registration.status()).toBe(201);
+  const requestedPaths: string[] = [];
+  page.on('request', request => requestedPaths.push(new URL(request.url()).pathname));
+  let releaseHistory!: () => void;
+  let releaseInference!: () => void;
+  const staleHistory = new Promise<void>(resolve => { releaseHistory = resolve; });
+  const waitingForJev = new Promise<void>(resolve => { releaseInference = resolve; });
+  await page.route('**/v1/classifications', async route => {
+    await staleHistory;
+    await route.fulfill({ json: { results: [] } });
+  }, { times: 1 });
+  await page.route('**/v1/demo/inference', async route => { await waitingForJev; await route.continue(); }, { times: 1 });
+  await page.route('**/v1/demo/receipts', route => route.abort());
+
   await page.goto('/app');
-  const team = page.getByRole('region', { name: text.netlifyCredits });
-  await expect(page.locator('.portal-usage strong')).toHaveText('7');
-  await expect(team.getByText('0', { exact: true })).toBeVisible();
-  await expect(team).toContainText(text.manuallyChecked);
-  await expect(team.locator('time')).toHaveAttribute('datetime', checkedAt);
-  await expect(team.locator('time')).toContainText('2026');
+  const history = page.getByRole('region', { name: text.history }).locator('tbody tr');
+  const decision = page.getByRole('region', { name: text.decision });
+  const form = page.locator('form');
+  const left = (await form.boundingBox())!;
+  expect((await decision.boundingBox())!.x).toBeGreaterThanOrEqual(left.x + left.width);
+  await page.getByLabel(text.subject).fill(en.fixtures.outage.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.outage.text);
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(decision).toContainText(text.awaitingJev);
+  releaseInference();
+  await expect(decision).toContainText(en.tiers.Emergency);
+  await expect(history).toHaveCount(1);
+  await expect(history.first()).toContainText(en.tiers.Emergency);
+  releaseHistory();
+  await expect(page.getByRole('button', { name: text.retrySave })).toBeVisible();
+  await page.getByLabel(text.subject).fill(en.fixtures.signoff.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(history).toHaveCount(2);
+  await expect(history.first()).toContainText(en.tiers.Urgent);
+  const waiting = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('jev.demo.')));
+  expect(waiting).toHaveLength(2);
+  expect(JSON.stringify(waiting)).not.toContain(en.fixtures.outage.subject);
+
+  await page.unroute('**/v1/demo/receipts');
+  await page.reload();
+  await expect(history).toHaveCount(2);
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('jev.demo.')).length)).toBe(0);
+  await page.setViewportSize({ width: 375, height: 800 });
+  const mobileForm = (await form.boundingBox())!;
+  expect((await decision.boundingBox())!.y).toBeGreaterThanOrEqual(mobileForm.y + mobileForm.height);
+  await expect(page.getByText(/Your API usage|Netlify team credits remaining/)).toHaveCount(0);
+  expect(requestedPaths.filter(path => path === '/v1/demo/inference')).toHaveLength(2);
+  expect(requestedPaths).not.toContain('/v1/usage/me');
+  expect(requestedPaths).not.toContain('/v1/classify');
 });
 
 test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
@@ -85,7 +125,7 @@ test('an administrator lands on Registered users and can return from the public 
   await page.getByRole('link', { name: text.service }).click();
   await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.getByRole('link', { name: text.publicInbox }).click();
+  await page.getByRole('link', { name: text.liveInbox }).click();
   const navigation = page.getByRole('navigation', { name: text.portal });
   await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.accounts]);
   const directoryLink = navigation.getByRole('link', { name: text.accounts });
