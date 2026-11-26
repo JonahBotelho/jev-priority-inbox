@@ -60,6 +60,8 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
     assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal(preflight.headers.get('access-control-max-age'), '600');
+    assert.equal(preflight.headers.get('timing-allow-origin'), origin);
     assert.equal((await portalFetch(base + '/auth/me', { headers: { Origin: 'https://other.example' } })).status, 403);
     const publicRead = await portalFetch(base + '/priority', { headers: { Origin: 'https://other.example' } });
     assert.equal(publicRead.status, 200);

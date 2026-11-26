@@ -92,9 +92,10 @@ export class PortalApi {
     if ((origin && !this.origins.has(origin)) || (!origin && req.get('sec-fetch-site') === 'cross-site' && req.method === 'POST')) {
       res.status(403).json({ error: en.forbidden }); return;
     }
-    if (origin) res.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true' });
+    if (origin) res.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Timing-Allow-Origin': origin });
     if (req.method === 'OPTIONS') {
-      res.set({ 'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+      res.set({ 'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Max-Age': '600' });
       res.sendStatus(204); return;
     }
     next();
@@ -144,8 +145,10 @@ export class PortalApi {
   }
 
   private requireUser = async (req: Request, res: Response, next: NextFunction) => {
+    const started = performance.now();
     const claims = this.auth.claims(req);
     const user = claims && await this.store.sessionUser(claims.sessionId, claims.userId);
+    res.append('Server-Timing', `session;dur=${(performance.now() - started).toFixed(1)}`);
     if (!user) { res.status(401).json({ error: en.unauthorized }); return; }
     res.locals.user = user; next();
   };

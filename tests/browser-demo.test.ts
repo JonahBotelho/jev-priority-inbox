@@ -64,6 +64,14 @@ test('the demo returns probabilities before a DB write and records authentic pro
     receipt = await response.json();
     assert.deepEqual(receipt.inference.probabilities, probabilities);
     assert.ok(!JSON.stringify(receipt).includes(message.text));
+    const timing = response.headers.get('server-timing') ?? '';
+    assert.match(timing, /session;dur=\d+/);
+    assert.ok(timing.includes(`jev;dur=${receipt.inference.durationMs}`));
+    providerStatus = 429;
+    const failure = await post('/demo/inference', message, member);
+    assert.equal(failure.status, 502);
+    assert.ok(!(await failure.text()).includes('private provider diagnostic'));
+    providerStatus = 200;
   } finally {
     await blocker.query('ROLLBACK');
     blocker.release();
@@ -81,16 +89,14 @@ test('the demo returns probabilities before a DB write and records authentic pro
   assert.deepEqual(await read('/classifications', other), { results: [] });
   const { rows } = await database.pool.query('SELECT input_tokens,output_tokens,duration_ms FROM api_usage WHERE id=$1', [entry.id]);
   assert.deepEqual(rows, [{ input_tokens: 91, output_tokens: 3, duration_ms: receipt.inference.durationMs }]);
-  assert.equal(providerCalls, 1);
+  assert.equal(providerCalls, 2);
 
   // A browser that never acknowledges a response still leaves an accurate history and usage record.
   assert.equal((await post('/demo/inference', message, member)).status, 200);
-  providerStatus = 429;
-  const failure = await post('/demo/inference', message, member);
-  assert.equal(failure.status, 502);
-  assert.ok(!(await failure.text()).includes('private provider diagnostic'));
-  const usage = await read('/usage/me', member);
-  assert.deepEqual([usage.requests, usage.successful], [3, 2]);
+  await t.waitFor(async () => {
+    const usage = await read('/usage/me', member);
+    assert.deepEqual([usage.requests, usage.successful], [3, 2]);
+  });
   assert.equal((await read('/classifications', member)).results.length, 2);
   assert.equal((await read('/usage/me', other)).requests, 0);
   assert.equal(providerCalls, 3);
