@@ -148,10 +148,19 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     const adminCookie = adminLogin.headers.get('set-cookie')!.split(';')[0];
     const dashboard = await request('/admin/dashboard', 'GET', undefined, adminCookie);
     assert.equal(dashboard.status, 200);
-    const { users } = await dashboard.json();
+    const { users, endpoints } = await dashboard.json();
     assert.equal(users.length, 3);
-    assert.equal(users.find((user: {email: string}) => user.email === 'member@example.test').requests, 2);
+    assert.equal(users.find((user: {email: string}) => user.email === 'member@example.test').requests, 9);
+    assert.equal(users.find((user: {email: string}) => user.email === 'other@example.test').requests, 2);
+    assert.equal(users.find((user: {email: string}) => user.email === 'root@example.test').requests, 0);
     assert.deepEqual(Object.keys(users[0]).sort(), ['id','email','role','createdAt','requests'].sort());
+    assert.ok(Array.isArray(endpoints));
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'POST' && stat.endpoint === '/v1/classify')?.requests, 3);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/priority')?.requests, 1);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/usage/me')?.requests, 5);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/classifications')?.requests, 3);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.endpoint === '/v1/auth/login'), undefined);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.endpoint === '/v1/admin/dashboard'), undefined);
     const selfDemotion = await request('/admin/users/' + (await adminLogin.json() as { id: string }).id, 'PATCH', { role: 'user' }, adminCookie);
     assert.equal(selfDemotion.status, 404); // The live administrator list is read-only.
 

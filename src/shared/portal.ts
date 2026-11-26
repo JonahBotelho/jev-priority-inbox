@@ -25,8 +25,14 @@ export interface DemoInference extends DemoAttempt {
   outputTokens: number | null;
 }
 export interface DemoReceipt { inference: DemoInference; signature: string }
+export interface EndpointStat {
+  method: string;
+  endpoint: string;
+  requests: number;
+}
 export interface PortalDashboard {
   users: (PortalUser & { createdAt: string; requests: number })[];
+  endpoints: EndpointStat[];
 }
 
 export function demoHistoryEntry({ id, createdAt, model, probabilities }: DemoInference): PortalHistory {

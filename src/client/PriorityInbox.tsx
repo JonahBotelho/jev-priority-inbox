@@ -43,7 +43,7 @@ function InboxNavigation() {
 
   return <nav className="inbox-portal-nav" aria-label={portalText.portal}>
     <a href="/app">{labels.tryEmailDemo}</a>
-    {isAdmin && <a className="inbox-admin-link" href="/admin">{portalText.accounts}</a>}
+    {isAdmin && <a className="inbox-admin-link" href="/admin">{portalText.adminDashboard}</a>}
   </nav>;
 }
 

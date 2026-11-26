@@ -7,7 +7,7 @@ import { priorityInboxText as inboxText } from '../../src/locales/priorityInbox.
 test('a member lands on the public inbox after registration and again after signing back in', async ({page}) => {
   const email = 'browser-member@example.test';
   const demoLink = page.getByRole('link', { name: inboxText.tryEmailDemo });
-  const directoryLink = page.getByRole('link', { name: text.accounts });
+  const directoryLink = page.getByRole('link', { name: text.adminDashboard });
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.status() === 401),
     page.goto('/'),
@@ -181,24 +181,41 @@ test('an untouched visible demo keeps its history current before the next classi
   expect(requests.filter(path => path === '/v1/demo/inference')).toHaveLength(1);
 });
 
-test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
+test('an administrator lands on Admin dashboard, sees server-side endpoint stats, and can return from the public inbox', async ({page}) => {
   await page.goto('/login');
   await page.getByLabel(text.email).fill('admin@example.test');
   await page.getByLabel(text.password).fill('browser-test-only');
   await page.getByRole('button', {name:text.signIn}).click();
   await expect(page).toHaveURL('/admin');
-  await expect(page.getByRole('heading', {name:text.accounts})).toBeVisible();
-  await expect(page.getByRole('cell', {name:'admin@example.test', exact:true})).toBeVisible();
+  await expect(page.getByRole('heading', {name:text.adminDashboard})).toBeVisible();
+  const endpointRegion = page.getByRole('region', { name: text.endpointStats });
+  const usersRegion = page.getByRole('region', { name: text.accounts });
+  await expect(endpointRegion).toBeVisible();
+  await expect(usersRegion).toBeVisible();
+  await expect(endpointRegion.getByRole('cell', { name: '/v1/demo/inference', exact: true })).toBeVisible();
+  await expect(endpointRegion.getByRole('cell', { name: '/v1/priority', exact: true })).toBeVisible();
+  await expect(usersRegion.getByRole('cell', {name:'admin@example.test', exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByRole('button')).toHaveCount(0);
+
   await page.getByRole('link', { name: text.service }).click();
   await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
+  await page.getByLabel(text.subject).fill(en.fixtures.outage.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.outage.text);
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(en.tiers.Emergency);
+
   await page.setViewportSize({ width: 375, height: 800 });
   await page.getByRole('link', { name: text.liveInbox }).click();
   const navigation = page.getByRole('navigation', { name: text.portal });
-  await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.accounts]);
-  const directoryLink = navigation.getByRole('link', { name: text.accounts });
-  await expect(directoryLink).toHaveAttribute('href', '/admin');
-  await directoryLink.click();
+  await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.adminDashboard]);
+  const dashboardLink = navigation.getByRole('link', { name: text.adminDashboard });
+  await expect(dashboardLink).toHaveAttribute('href', '/admin');
+  await dashboardLink.click();
   await expect(page).toHaveURL('/admin');
-  await expect(page.getByRole('heading', { name: text.accounts })).toBeVisible();
+  await expect(page.getByRole('heading', { name: text.adminDashboard })).toBeVisible();
+  const inferenceRow = endpointRegion.locator('tbody tr', { hasText: '/v1/demo/inference' });
+  await expect(inferenceRow).toContainText('POST');
+  await expect(inferenceRow.locator('td').last()).not.toHaveText('0');
+  await page.getByRole('button', { name: text.refresh }).click();
+  await expect(endpointRegion).toBeVisible();
 });

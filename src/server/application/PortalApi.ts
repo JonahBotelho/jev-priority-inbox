@@ -11,6 +11,7 @@ import type { PostgresInbox } from '../infrastructure/PostgresInbox.js';
 import { PostgresPortal } from '../infrastructure/PostgresPortal.js';
 import { PortalAuth } from './PortalAuth.js';
 import { BrowserDemoApi } from './BrowserDemoApi.js';
+import { EndpointStatsTracker } from './EndpointStatsTracker.js';
 
 const productionApi = 'https://jev-priority-inbox-api.onrender.com';
 const productionClient = 'https://jev-priority-inbox-client.onrender.com';
@@ -19,11 +20,14 @@ const paths = ['/auth', '/classify', '/classifications', '/usage', '/admin', '/d
 export class PortalApi {
   readonly router = Router();
   readonly legacyManagement = Router();
+  readonly endpointStats: EndpointStatsTracker;
   private readonly attempts = new Map<string, number>();
   private resetAttemptsAt = 0;
 
   private constructor(private readonly store: PostgresPortal, private readonly auth: PortalAuth,
     private readonly adminEmail: string, private readonly origins: Set<string>, demo: BrowserDemoApi, private readonly classifier?: Classifier) {
+    this.endpointStats = new EndpointStatsTracker(store);
+    this.router.use(this.endpointStats.track('/v1'));
     this.router.use(paths, this.browserAccess, express.json({ limit: '128kb' }));
     this.router.post('/auth/register', this.register);
     this.router.post('/auth/login', this.login);
@@ -36,7 +40,9 @@ export class PortalApi {
     this.router.get('/classifications', this.requireUser, async (_req, res) => res.json({ results: await store.history(res.locals.user.id) }));
     this.router.get('/admin/dashboard', this.requireUser, async (_req, res) => {
       if (res.locals.user.role !== 'admin') { res.status(403).json({ error: labels.adminRequired }); return; }
-      res.json(await store.dashboard());
+      await this.endpointStats.flush();
+      const { users, endpoints } = await store.dashboard();
+      res.json({ users, endpoints: this.endpointStats.mergeWithCatalog(endpoints) });
     });
     this.router.use(this.onError);
     this.legacyManagement.all('/admin/users/:id', this.requireUser);
