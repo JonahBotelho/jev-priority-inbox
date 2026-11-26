@@ -4,12 +4,12 @@ import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
 import { maxMessageLength, maxSubjectLength } from '../shared/jev.js';
 import { demoHistoryEntry, type DemoReceipt, type PortalHistory } from '../shared/portal.js';
+import { historyFreshnessMs, observeDemoHistory } from './DemoHistoryRefresh.js';
 import { DemoReceipts } from './DemoReceipts.js';
 import { InboxApi } from './InboxApi.js';
 
 type DisplayResult = PortalHistory & { receipt: DemoReceipt; totalMs: number };
 type DescribeError = (error: unknown) => string;
-const historyFreshnessMs = 5 * 60 * 1000;
 
 function mergeHistory(current: PortalHistory[], incoming: PortalHistory[]) {
   const byId = new Map([...current, ...incoming].map(item => [item.id, item]));
@@ -37,10 +37,10 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
   }, [refreshHistory]);
 
   useEffect(() => {
-    document.addEventListener('visibilitychange', refreshIfStale);
+    const stopObserving = observeDemoHistory(document, refreshIfStale);
     window.addEventListener('focus', refreshIfStale);
     return () => {
-      document.removeEventListener('visibilitychange', refreshIfStale);
+      stopObserving();
       window.removeEventListener('focus', refreshIfStale);
     };
   }, [refreshIfStale]);
