@@ -38,7 +38,8 @@ CREATE INDEX IF NOT EXISTS api_usage_user_time ON api_usage (user_id, created_at
 
 -- Native TypeSafe responses include token usage. Historical receipts keep their original counts.
 ALTER TABLE api_usage ADD COLUMN IF NOT EXISTS input_tokens integer,
-                      ADD COLUMN IF NOT EXISTS output_tokens integer;
+                      ADD COLUMN IF NOT EXISTS output_tokens integer,
+                      ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
 -- A maintainer records the balance from the team's Netlify billing dashboard at the time of observation.
 CREATE TABLE IF NOT EXISTS netlify_credit_checks (

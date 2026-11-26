@@ -33,7 +33,13 @@ test('a member lands on the public inbox after registration and again after sign
   await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
   await page.getByRole('button', {name:text.classify}).click();
   await expect(page.getByRole('status')).toContainText('Urgent');
-  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
+  const historyRows = page.getByRole('region', { name: text.history }).locator('tbody tr');
+  await expect(historyRows).toHaveCount(1);
+  // Edit priority via PUT /v1/classifications/:id and verify persistence across sign-out/sign-in.
+  await historyRows.first().getByRole('button', { name: text.edit }).click();
+  await historyRows.first().getByLabel(text.priority).selectOption('Emergency');
+  await historyRows.first().getByRole('button', { name: text.save }).click();
+  await expect(historyRows.first()).toContainText(en.tiers.Emergency);
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/app$/);
   await page.getByRole('button', {name:text.signOut}).click();
@@ -47,8 +53,13 @@ test('a member lands on the public inbox after registration and again after sign
   await expect(page).toHaveURL('/');
   await demoLink.click();
   await expect(page).toHaveURL('/app');
-  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
-  await expect(page.locator('.portal-history')).toContainText('Urgent');
+  await expect(historyRows).toHaveCount(1);
+  await expect(page.locator('.portal-history')).toContainText(en.tiers.Emergency);
+  // Delete classification via DELETE /v1/classifications/:id and verify removal persists across reload.
+  await historyRows.first().getByRole('button', { name: text.delete }).click();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.ok()),
     page.getByRole('link', { name: text.liveInbox }).click(),

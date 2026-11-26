@@ -3,7 +3,9 @@ import type { Probabilities, Tier } from './types.js';
 import { PriorityPolicy } from './PriorityPolicy.js';
 
 export type PortalRole = 'user' | 'admin';
+export const validTiers: readonly Tier[] = ['Emergency', 'Urgent', 'Routine'];
 export interface PortalUser { id: string; email: string; role: PortalRole }
+export interface ClassificationUpdate { tier: Tier }
 export interface PortalUsage {
   requests: number;
   successful: number;
@@ -38,4 +40,11 @@ export interface PortalDashboard {
 export function demoHistoryEntry({ id, createdAt, model, probabilities }: DemoInference): PortalHistory {
   const { tier, score } = new PriorityPolicy().decide(probabilities);
   return { id, createdAt, model, tier, score: Math.round(score) };
+}
+
+export function readClassificationUpdate(body: unknown): ClassificationUpdate | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const { tier } = body as Record<string, unknown>;
+  if (typeof tier !== 'string' || !validTiers.includes(tier as Tier)) return undefined;
+  return { tier: tier as Tier };
 }

@@ -33,6 +33,16 @@ export class DemoReceipts {
     catch { /* The relay also saves its copy if this tab closes. */ }
   }
 
+  has(id: string): boolean {
+    return this.pending.has(id);
+  }
+
+  discard(id: string): void {
+    this.pending.delete(id);
+    try { localStorage.removeItem(this.prefix + id); }
+    catch { /* Storage can be unavailable in private browsing. */ }
+  }
+
   sync(): Promise<boolean> {
     if (!this.pending.size) return Promise.resolve(true);
     return this.syncing ??= this.deliverPending().finally(() => { this.syncing = undefined; });

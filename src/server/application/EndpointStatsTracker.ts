@@ -23,6 +23,8 @@ export class EndpointStatsTracker {
     { method: 'POST', endpoint: '/v1/demo/inference' },
     { method: 'POST', endpoint: '/v1/demo/receipts' },
     { method: 'GET', endpoint: '/v1/classifications' },
+    { method: 'PUT', endpoint: '/v1/classifications/:id' },
+    { method: 'DELETE', endpoint: '/v1/classifications/:id' },
     { method: 'GET', endpoint: '/v1/usage/me' },
   ];
 

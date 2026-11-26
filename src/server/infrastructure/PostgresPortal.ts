@@ -1,7 +1,7 @@
 // Portal accounts, revocable sessions and per-user classification receipts in the existing Neon database.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { demoHistoryEntry, type DemoAttempt, type DemoInference, type EndpointStat, type PortalDashboard, type PortalHistory,
+import { demoHistoryEntry, type ClassificationUpdate, type DemoAttempt, type DemoInference, type EndpointStat, type PortalDashboard, type PortalHistory,
   type PortalRole, type PortalUsage, type PortalUser } from '../../shared/portal.js';
 import type { Tier } from '../../shared/types.js';
 import type { PostgresInbox } from './PostgresInbox.js';
@@ -93,8 +93,46 @@ export class PostgresPortal {
 
   async history(userId: string): Promise<PortalHistory[]> {
     const { rows } = await this.database.pool.query<PortalHistory>(`SELECT id,tier,score,model,created_at AS "createdAt"
-      FROM api_usage WHERE user_id=$1 AND tier IS NOT NULL ORDER BY created_at DESC,id LIMIT 50`, [userId]);
+      FROM api_usage WHERE user_id=$1 AND tier IS NOT NULL AND deleted_at IS NULL ORDER BY created_at DESC,id LIMIT 50`, [userId]);
     return rows;
+  }
+
+  async updateClassification(
+    userId: string,
+    id: string,
+    update: ClassificationUpdate,
+  ): Promise<{ status: 200; record: PortalHistory } | { status: 403 | 404 }> {
+    return this.database.transaction(async client => {
+      const { rows: [existing] } = await client.query<{ user_id: string }>(
+        'SELECT user_id FROM api_usage WHERE id=$1 AND tier IS NOT NULL AND deleted_at IS NULL FOR UPDATE',
+        [id],
+      );
+      if (!existing) return { status: 404 };
+      if (existing.user_id !== userId) return { status: 403 };
+      const { rows: [record] } = await client.query<PortalHistory>(
+        `UPDATE api_usage SET tier=$3
+         WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL
+         RETURNING id,tier,score,model,created_at AS "createdAt"`,
+        [id, userId, update.tier],
+      );
+      return { status: 200, record };
+    });
+  }
+
+  async deleteClassification(userId: string, id: string): Promise<204 | 403 | 404> {
+    return this.database.transaction(async client => {
+      const { rows: [existing] } = await client.query<{ user_id: string }>(
+        'SELECT user_id FROM api_usage WHERE id=$1 AND tier IS NOT NULL AND deleted_at IS NULL FOR UPDATE',
+        [id],
+      );
+      if (!existing) return 404;
+      if (existing.user_id !== userId) return 403;
+      await client.query(
+        'UPDATE api_usage SET deleted_at=now() WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL',
+        [id, userId],
+      );
+      return 204;
+    });
   }
 
   async recordEndpointHit(method: string, endpoint: string, userId?: string): Promise<void> {

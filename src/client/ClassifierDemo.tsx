@@ -7,15 +7,10 @@ import { demoHistoryEntry, type DemoReceipt, type PortalHistory } from '../share
 import { historyFreshnessMs, observeDemoHistory } from './DemoHistoryRefresh.js';
 import { DemoReceipts } from './DemoReceipts.js';
 import { InboxApi } from './InboxApi.js';
+import { mergeClassificationHistory, RecentClassifications } from './RecentClassifications.js';
 
 type DisplayResult = PortalHistory & { receipt: DemoReceipt; totalMs: number };
 type DescribeError = (error: unknown) => string;
-
-function mergeHistory(current: PortalHistory[], incoming: PortalHistory[]) {
-  const byId = new Map([...current, ...incoming].map(item => [item.id, item]));
-  return [...byId.values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)
-    || a.id.localeCompare(b.id)).slice(0, 50);
-}
 
 export function ClassifierDemo({ userId, describeError }: { userId: string; describeError: DescribeError }) {
   const [receipts] = useState(() => new DemoReceipts(userId));
@@ -64,6 +59,21 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
     void sync();
   }, [receipts, result, sync]);
 
+  const ensureSynced = useCallback(async (id: string) => {
+    if (receipts.has(id)) await sync();
+  }, [receipts, sync]);
+
+  const handleUpdate = useCallback((updated: PortalHistory) => {
+    setHistory(rows => rows.some(item => item.id === updated.id)
+      ? rows.map(item => item.id === updated.id ? updated : item)
+      : rows);
+  }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    receipts.discard(id);
+    setHistory(rows => rows.filter(item => item.id !== id));
+  }, [receipts]);
+
   async function classify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -80,7 +90,7 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
       if (receipt.inference.userId !== userId) { window.location.reload(); return; }
       const entry = demoHistoryEntry(receipt.inference);
       setResult({ ...entry, receipt, totalMs: Math.round(performance.now() - started) });
-      setHistory(rows => mergeHistory(rows, [entry]));
+      setHistory(rows => mergeClassificationHistory(rows, [entry]));
     } catch (cause) {
       setError(describeError(cause));
     } finally {
@@ -105,7 +115,8 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
         </div>
       </section>
     </div>
-    <RecentClassifications localRows={history} describeError={describeError} revision={historyRevision} retry={refreshHistory} />
+    <RecentClassifications localRows={history} describeError={describeError} revision={historyRevision}
+      retry={refreshHistory} ensureSynced={ensureSynced} onUpdate={handleUpdate} onDelete={handleDelete} />
     {saveError && <p className="portal-error" role="alert">{labels.demoSaveError}{' '}
       <button className="portal-secondary" onClick={() => void sync()}>{labels.retrySave}</button>
     </p>}
@@ -122,34 +133,4 @@ function Decision({ result }: { result: DisplayResult }) {
       <div><dt>{labels.responseTime}</dt><dd>{labels.milliseconds(result.receipt.inference.durationMs)}</dd></div>
     </dl>
   </>;
-}
-
-function RecentClassifications({ localRows, describeError, revision, retry }: {
-  localRows: PortalHistory[]; describeError: DescribeError; revision: number; retry: () => void;
-}) {
-  const [savedRows, setSavedRows] = useState<PortalHistory[]>();
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    setError('');
-    InboxApi.request<{ results: PortalHistory[] }>('/classifications', 'GET', undefined, controller.signal)
-      .then(page => { if (!controller.signal.aborted) setSavedRows(page.results); })
-      .catch(cause => { if (!controller.signal.aborted) setError(describeError(cause)); });
-    return () => controller.abort();
-  }, [revision, describeError]);
-  const rows = mergeHistory(savedRows ?? [], localRows);
-  return <section className="portal-card portal-history" aria-labelledby="recent-classifications">
-    <h2 id="recent-classifications">{labels.history}</h2>
-    {error && <p role="alert">{error}{' '}
-      <button className="portal-secondary" onClick={retry}>{en.retry}</button>
-    </p>}
-    {rows.length ? <div className="portal-table-wrap"><table>
-      <thead><tr><th>{labels.priority}</th><th>{labels.score}</th><th>{labels.model}</th><th>{labels.time}</th></tr></thead>
-      <tbody>{rows.map(item => <tr key={item.id}>
-        <td><span className={`portal-tier ${item.tier.toLowerCase()}`}>{en.tiers[item.tier]}</span></td>
-        <td>{item.score}</td><td>{item.model}</td>
-        <td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td>
-      </tr>)}</tbody>
-    </table></div> : !error && <p className="portal-muted">{savedRows ? labels.emptyHistory : en.loading}</p>}
-  </section>;
 }
