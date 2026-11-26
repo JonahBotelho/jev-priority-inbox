@@ -75,6 +75,7 @@ test('the browser renders each Jev decision immediately and retries only its rec
   await page.route('**/v1/demo/inference', async route => { await waitingForJev; await route.continue(); }, { times: 1 });
   await page.route('**/v1/demo/receipts', route => route.abort());
 
+  await page.clock.install();
   await page.goto('/app');
   const history = page.getByRole('region', { name: text.history }).locator('tbody tr');
   const decision = page.getByRole('region', { name: text.decision });
@@ -85,8 +86,12 @@ test('the browser renders each Jev decision immediately and retries only its rec
   await page.getByLabel(text.message).fill(en.fixtures.outage.text);
   await page.getByRole('button', { name: text.classify, exact: true }).click();
   await expect(decision).toContainText(text.awaitingJev);
+  await page.clock.fastForward(30000);
   releaseInference();
   await expect(decision).toContainText(en.tiers.Emergency);
+  const timeShown = (label: string) => decision.locator('dl div').filter({ has: page.getByText(label, { exact: true }) }).locator('dd').innerText();
+  expect(parseInt(await timeShown(text.totalResponseTime))).toBeGreaterThanOrEqual(30000);
+  expect(parseInt(await timeShown(text.responseTime))).toBeLessThan(30000);
   await expect(history).toHaveCount(1);
   await expect(history.first()).toContainText(en.tiers.Emergency);
   releaseHistory();
@@ -111,6 +116,39 @@ test('the browser renders each Jev decision immediately and retries only its rec
   expect(requestedPaths.filter(path => path === '/v1/demo/inference')).toHaveLength(2);
   expect(requestedPaths).not.toContain('/v1/usage/me');
   expect(requestedPaths).not.toContain('/v1/classify');
+});
+
+test('editing after inactivity refreshes history once and can classify while the refresh is pending', async ({ page }) => {
+  const registration = await page.request.post('http://127.0.0.1:3101/v1/auth/register', {
+    data: { email: 'returning-demo@example.test', password: 'returning-demo-password' },
+  });
+  expect(registration.status()).toBe(201);
+  const opened = Date.now();
+  await page.clock.setFixedTime(opened);
+  await page.goto('/app');
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+
+  let refreshes = 0, inferences = 0;
+  let releaseHistory!: () => void;
+  const waitingForHistory = new Promise<void>(resolve => { releaseHistory = resolve; });
+  await page.route('**/v1/classifications', async route => {
+    refreshes++;
+    await waitingForHistory;
+    await route.fulfill({ json: { results: [] } });
+  });
+  page.on('request', request => { if (request.url().endsWith('/v1/demo/inference')) inferences++; });
+  try {
+    await page.clock.setFixedTime(opened + 16 * 60 * 1000);
+    await page.getByLabel(text.subject).fill(en.fixtures.signoff.subject);
+    await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
+    await expect.poll(() => refreshes).toBe(1);
+    expect(inferences).toBe(0);
+    await page.getByRole('button', { name: text.classify, exact: true }).click();
+    await expect(page.getByRole('status')).toContainText(en.tiers.Urgent);
+    await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
+    expect(inferences).toBe(1);
+    expect(refreshes).toBe(1);
+  } finally { releaseHistory(); }
 });
 
 test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
