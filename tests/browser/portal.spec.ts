@@ -151,6 +151,36 @@ test('editing after inactivity refreshes history once and can classify while the
   } finally { releaseHistory(); }
 });
 
+test('an untouched visible demo keeps its history current before the next classification', async ({ page }) => {
+  const api = 'http://127.0.0.1:3101/v1';
+  const registration = await page.request.post(api + '/auth/register', {
+    data: { email: 'visible-demo@example.test', password: 'visible-demo-password' },
+  });
+  expect(registration.status()).toBe(201);
+  await page.clock.install();
+  await page.goto('/app');
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+  await page.getByLabel(text.subject).fill(en.fixtures.outage.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.outage.text);
+
+  const requests: string[] = [];
+  page.on('request', request => requests.push(new URL(request.url()).pathname));
+  const otherClient = await page.request.post(api + '/classify', { data: en.fixtures.signoff });
+  expect(otherClient.status()).toBe(200);
+  const history = page.getByRole('region', { name: text.history }).locator('tbody tr');
+  for (let interval = 1; interval <= 3; interval++) {
+    await page.clock.fastForward(5 * 60 * 1000 + 1);
+    await expect.poll(() => requests.filter(path => path === '/v1/classifications').length).toBe(interval);
+  }
+  await expect(history).toHaveCount(1);
+  await expect(history.first()).toContainText(en.tiers.Urgent);
+  expect(requests).not.toContain('/v1/demo/inference');
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(en.tiers.Emergency);
+  await expect(history).toHaveCount(2);
+  expect(requests.filter(path => path === '/v1/demo/inference')).toHaveLength(1);
+});
+
 test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
   await page.goto('/login');
   await page.getByLabel(text.email).fill('admin@example.test');
