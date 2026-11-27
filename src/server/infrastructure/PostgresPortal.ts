@@ -136,27 +136,24 @@ export class PostgresPortal {
   }
 
   async recordEndpointHit(method: string, endpoint: string, userId?: string): Promise<void> {
-    const writes: Promise<unknown>[] = [
-      this.database.pool.query(
-        `INSERT INTO api_endpoint_stats (method, endpoint, requests, last_requested_at)
-         VALUES ($1, $2, 1, now())
-         ON CONFLICT (method, endpoint)
-         DO UPDATE SET requests = api_endpoint_stats.requests + 1, last_requested_at = now()`,
-        [method, endpoint],
-      ),
-    ];
-    if (userId) {
-      writes.push(
-        this.database.pool.query(
-          `INSERT INTO api_user_endpoint_stats (user_id, method, endpoint, requests, last_requested_at)
-           VALUES ($1, $2, $3, 1, now())
-           ON CONFLICT (user_id, method, endpoint)
-           DO UPDATE SET requests = api_user_endpoint_stats.requests + 1, last_requested_at = now()`,
-          [userId, method, endpoint],
-        ),
-      );
+    const endpointSql = `INSERT INTO api_endpoint_stats (method, endpoint, requests, last_requested_at)
+       VALUES ($1, $2, 1, now())
+       ON CONFLICT (method, endpoint)
+       DO UPDATE SET requests = api_endpoint_stats.requests + 1, last_requested_at = now()`;
+    if (!userId) {
+      await this.database.pool.query(endpointSql, [method, endpoint]);
+      return;
     }
-    await Promise.all(writes);
+    await this.database.transaction(async client => {
+      await client.query(endpointSql, [method, endpoint]);
+      await client.query(
+        `INSERT INTO api_user_endpoint_stats (user_id, method, endpoint, requests, last_requested_at)
+         VALUES ($1, $2, $3, 1, now())
+         ON CONFLICT (user_id, method, endpoint)
+         DO UPDATE SET requests = api_user_endpoint_stats.requests + 1, last_requested_at = now()`,
+        [userId, method, endpoint],
+      );
+    });
   }
 
   async dashboard(): Promise<PortalDashboard> {

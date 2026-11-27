@@ -113,3 +113,44 @@ test('EndpointStatsTracker records normalized Express routes, per-user attributi
   assert.equal(endpoints[0].requests, 2);
   assert.equal(endpoints[endpoints.length - 1].requests, 0);
 });
+
+test('EndpointStatsTracker logs write failures without leaking request payloads or breaking responses', async t => {
+  const logged: unknown[][] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => { logged.push(args); });
+
+  const tracker = new EndpointStatsTracker({
+    async recordEndpointHit() {
+      throw Object.assign(new Error('FK violation'), { code: '23503' });
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  const portal = express.Router();
+  portal.use(tracker.track('/v1'));
+  portal.post('/classify', (_req, res) => {
+    res.locals.user = { id: 'missing-user-id' };
+    res.json({ ok: true });
+  });
+  app.use('/v1', portal);
+
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const secretBody = { subject: 'PRIVATE-SUBJECT-12345', text: 'CONFIDENTIAL-BODY-67890' };
+  const res = await fetch(`${origin}/v1/classify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(secretBody),
+  });
+  assert.equal(res.status, 200);
+  await tracker.flush();
+
+  assert.equal(logged.length, 1);
+  const message = logged[0].map(String).join(' ');
+  assert.match(message, /POST \/v1\/classify/);
+  assert.match(message, /23503/);
+  assert.doesNotMatch(message, /PRIVATE-SUBJECT-12345|CONFIDENTIAL-BODY-67890/);
+});

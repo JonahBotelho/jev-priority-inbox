@@ -17,16 +17,57 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
   const [history, setHistory] = useState(() => receipts.history);
   const [historyRevision, setHistoryRevision] = useState(0);
   const lastApiUse = useRef(Date.now());
+  const ackSeq = useRef(0);
+  const confirmedAtSeq = useRef(new Map<string, number>());
+  const historyReadInFlight = useRef(false);
+  const refreshAfterRead = useRef(false);
   const [result, setResult] = useState<DisplayResult>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  const sync = useCallback(async () => setSaveError(!await receipts.sync()), [receipts]);
 
   const refreshHistory = useCallback(() => {
     lastApiUse.current = Date.now();
+    refreshAfterRead.current = false;
     setHistoryRevision(revision => revision + 1);
   }, []);
+
+  const sync = useCallback(async () => {
+    const { ok, confirmedIds } = await receipts.sync();
+    setSaveError(!ok);
+    const newlyConfirmed = confirmedIds.filter(id => !confirmedAtSeq.current.has(id));
+    if (!newlyConfirmed.length) return;
+    const seq = ++ackSeq.current;
+    for (const id of newlyConfirmed) confirmedAtSeq.current.set(id, seq);
+    // Defer the post-acknowledge read if one is already in flight so active reads are not aborted.
+    if (historyReadInFlight.current) refreshAfterRead.current = true;
+    else refreshHistory();
+  }, [receipts, refreshHistory]);
+
+  const getHistorySeq = useCallback(() => ackSeq.current, []);
+
+  const handleHistoryReadStateChange = useCallback((inFlight: boolean) => {
+    historyReadInFlight.current = inFlight;
+    if (!inFlight && refreshAfterRead.current) {
+      refreshAfterRead.current = false;
+      refreshHistory();
+    }
+  }, [refreshHistory]);
+
+  const handleHistoryLoaded = useCallback((startedSeq: number) => {
+    // Compute retired IDs outside the state updater so React StrictMode double-invocations stay pure.
+    const retired = new Set<string>();
+    for (const [id, ackedAt] of confirmedAtSeq.current) {
+      if (ackedAt <= startedSeq && !receipts.has(id)) retired.add(id);
+    }
+    if (!retired.size) return;
+    for (const id of retired) confirmedAtSeq.current.delete(id);
+    setHistory(rows => {
+      const remaining = rows.filter(item => !retired.has(item.id));
+      return remaining.length === rows.length ? rows : remaining;
+    });
+  }, [receipts]);
+
   const refreshIfStale = useCallback(() => {
     if (!document.hidden && Date.now() - lastApiUse.current >= historyFreshnessMs) refreshHistory();
   }, [refreshHistory]);
@@ -71,6 +112,7 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
 
   const handleDelete = useCallback((id: string) => {
     receipts.discard(id);
+    confirmedAtSeq.current.delete(id);
     setHistory(rows => rows.filter(item => item.id !== id));
   }, [receipts]);
 
@@ -116,7 +158,9 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
       </section>
     </div>
     <RecentClassifications localRows={history} describeError={describeError} revision={historyRevision}
-      retry={refreshHistory} ensureSynced={ensureSynced} onUpdate={handleUpdate} onDelete={handleDelete} />
+      retry={refreshHistory} ensureSynced={ensureSynced} onUpdate={handleUpdate} onDelete={handleDelete}
+      getHistorySeq={getHistorySeq} onHistoryLoaded={handleHistoryLoaded}
+      onHistoryReadStateChange={handleHistoryReadStateChange} onMutated={refreshHistory} />
     {saveError && <p className="portal-error" role="alert">{labels.demoSaveError}{' '}
       <button className="portal-secondary" onClick={() => void sync()}>{labels.retrySave}</button>
     </p>}

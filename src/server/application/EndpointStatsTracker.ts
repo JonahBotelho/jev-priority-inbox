@@ -71,7 +71,10 @@ export class EndpointStatsTracker {
 
     const userId = typeof res.locals.user?.id === 'string' ? res.locals.user.id : undefined;
     const write = this.store.recordEndpointHit(method, endpoint, userId)
-      .catch(() => { /* Keep stats persistence isolated from API availability and test teardown. */ })
+      .catch((error: unknown) => {
+        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
+        console.error(`Failed to record endpoint statistics (${method} ${endpoint}): ${code}`);
+      })
       .finally(() => { this.pending.delete(write); });
     this.pending.add(write);
   }

@@ -7,6 +7,7 @@ export const portalText = {
   user: 'User', adminDashboard: 'Admin dashboard', dashboardSubtitle: 'Server-side API traffic and account usage',
   refresh: 'Refresh', refreshing: 'Refreshing…',
   endpointStats: 'API Endpoint Statistics', emptyEndpointStats: 'No tracked API requests recorded yet.',
+  endpointStatsUnavailable: 'API endpoint statistics are temporarily unavailable.',
   totalRequestsSummary: (count: number) => `${count} ${count === 1 ? 'total request' : 'total requests'}`,
   method: 'Method', endpoint: 'Endpoint', trafficShare: 'Traffic share', totalRequests: 'Total Requests',
   accounts: 'Registered users', service: 'Classifier demo', subject: 'Subject', message: 'Message',

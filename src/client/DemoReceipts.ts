@@ -2,10 +2,15 @@
 import { demoHistoryEntry, type DemoReceipt } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 
+export interface ReceiptSyncResult {
+  ok: boolean;
+  confirmedIds: string[];
+}
+
 export class DemoReceipts {
   private readonly prefix: string;
   private readonly pending = new Map<string, DemoReceipt>();
-  private syncing?: Promise<boolean>;
+  private syncing?: Promise<ReceiptSyncResult>;
 
   constructor(userId: string) {
     this.prefix = `jev.demo.${userId}.`;
@@ -43,20 +48,22 @@ export class DemoReceipts {
     catch { /* Storage can be unavailable in private browsing. */ }
   }
 
-  sync(): Promise<boolean> {
-    if (!this.pending.size) return Promise.resolve(true);
+  sync(): Promise<ReceiptSyncResult> {
+    if (!this.pending.size) return Promise.resolve({ ok: true, confirmedIds: [] });
     return this.syncing ??= this.deliverPending().finally(() => { this.syncing = undefined; });
   }
 
-  private async deliverPending(): Promise<boolean> {
+  private async deliverPending(): Promise<ReceiptSyncResult> {
+    const confirmedIds: string[] = [];
     // Iterating the map also picks up submissions made while an earlier receipt is in flight.
     for (const [id, receipt] of this.pending) {
       try {
         await InboxApi.request('/demo/receipts', 'POST', receipt, AbortSignal.timeout(15000));
         this.pending.delete(id);
+        confirmedIds.push(id);
         try { localStorage.removeItem(this.prefix + id); } catch { /* Replays are idempotent. */ }
       } catch { /* Retry the receipt on reconnect, reload or an explicit retry. */ }
     }
-    return this.pending.size === 0;
+    return { ok: this.pending.size === 0, confirmedIds };
   }
 }

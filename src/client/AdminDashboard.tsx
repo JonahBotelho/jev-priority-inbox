@@ -6,11 +6,12 @@ import type { EndpointStat, PortalDashboard } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 
 type DescribeError = (error: unknown) => string;
+type DashboardPayload = Omit<PortalDashboard, 'endpoints'> & { endpoints?: EndpointStat[] };
 
 const formatTimestamp = (value: string) => new Date(value).toLocaleString();
 
 export function AdminDashboard({ describeError }: { describeError: DescribeError }) {
-  const [data, setData] = useState<PortalDashboard>();
+  const [data, setData] = useState<DashboardPayload>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
@@ -19,7 +20,7 @@ export function AdminDashboard({ describeError }: { describeError: DescribeError
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    InboxApi.request<PortalDashboard>('/admin/dashboard', 'GET', undefined, controller.signal)
+    InboxApi.request<DashboardPayload>('/admin/dashboard', 'GET', undefined, controller.signal)
       .then(dashboard => {
         if (!controller.signal.aborted) setData(dashboard);
       })
@@ -50,14 +51,23 @@ export function AdminDashboard({ describeError }: { describeError: DescribeError
     </p>}
 
     {data ? <>
-      <EndpointStatisticsSection endpoints={data.endpoints} />
+      <EndpointStatisticsSection endpoints={Array.isArray(data.endpoints) ? data.endpoints : undefined} />
       <hr className="portal-divider" />
       <RegisteredUsersSection users={data.users} />
     </> : !error && <p className="portal-muted">{en.loading}</p>}
   </section>;
 }
 
-function EndpointStatisticsSection({ endpoints }: { endpoints: EndpointStat[] }) {
+function EndpointStatisticsSection({ endpoints }: { endpoints?: EndpointStat[] }) {
+  if (!endpoints) {
+    return <section aria-labelledby="endpoint-stats-heading">
+      <div className="portal-section-header">
+        <h2 id="endpoint-stats-heading">{labels.endpointStats}</h2>
+      </div>
+      <p className="portal-muted">{labels.endpointStatsUnavailable}</p>
+    </section>;
+  }
+
   const totalRequests = endpoints.reduce((sum, item) => sum + item.requests, 0);
   const maxRequests = endpoints.reduce((max, item) => Math.max(max, item.requests), 0);
 

@@ -7,6 +7,7 @@ import { createPublicInboxApi } from '../src/server/http/PublicInboxApi.js';
 import { PublicPriorityInbox } from '../src/server/application/PublicPriorityInbox.js';
 import { PortalApi } from '../src/server/application/PortalApi.js';
 import { EndpointStatsTracker } from '../src/server/application/EndpointStatsTracker.js';
+import { PostgresPortal } from '../src/server/infrastructure/PostgresPortal.js';
 import type { EndpointStat, PortalDashboard } from '../src/shared/portal.js';
 import { createTestStore } from './postgres-fixture.js';
 
@@ -141,4 +142,33 @@ test('migration seeds historical api_usage totals into api_endpoint_stats once w
     [admin.id],
   );
   assert.equal(userRows[0].requests, 3);
+});
+
+test('authenticated counter writes roll back api_endpoint_stats when api_user_endpoint_stats fails', async t => {
+  const database = await createTestStore();
+  t.after(() => database.pool.end());
+  const store = await PostgresPortal.open(database);
+
+  // Seed one valid public hit so we verify the pre-existing count stays unchanged on rollback.
+  await store.recordEndpointHit('POST', '/v1/classify');
+  const before = await database.pool.query<{ requests: number }>(
+    "SELECT requests FROM api_endpoint_stats WHERE method='POST' AND endpoint='/v1/classify'",
+  );
+  assert.equal(before.rows[0].requests, 1);
+
+  // Force the second write (api_user_endpoint_stats) to fail with an FK violation on nonexistent user_id.
+  await assert.rejects(
+    () => store.recordEndpointHit('POST', '/v1/classify', '00000000-0000-4000-8000-000000000999'),
+    /foreign key|23503/i,
+  );
+
+  const after = await database.pool.query<{ requests: number }>(
+    "SELECT requests FROM api_endpoint_stats WHERE method='POST' AND endpoint='/v1/classify'",
+  );
+  assert.equal(after.rows[0].requests, 1);
+  const userRows = await database.pool.query(
+    'SELECT * FROM api_user_endpoint_stats WHERE user_id=$1',
+    ['00000000-0000-4000-8000-000000000999'],
+  );
+  assert.equal(userRows.rows.length, 0);
 });

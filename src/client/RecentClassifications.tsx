@@ -1,5 +1,5 @@
 // Saved classification history table with inline priority update (PUT) and soft-delete (DELETE).
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
 import { validTiers, type PortalHistory } from '../shared/portal.js';
@@ -16,6 +16,10 @@ interface RecentClassificationsProps {
   ensureSynced: (id: string) => Promise<void>;
   onUpdate: (updated: PortalHistory) => void;
   onDelete: (id: string) => void;
+  getHistorySeq: () => number;
+  onHistoryLoaded: (startedSeq: number) => void;
+  onHistoryReadStateChange: (inFlight: boolean) => void;
+  onMutated: () => void;
 }
 
 export function mergeClassificationHistory(current: PortalHistory[], incoming: PortalHistory[]): PortalHistory[] {
@@ -26,6 +30,7 @@ export function mergeClassificationHistory(current: PortalHistory[], incoming: P
 
 export function RecentClassifications({
   localRows, describeError, revision, retry, ensureSynced, onUpdate, onDelete,
+  getHistorySeq, onHistoryLoaded, onHistoryReadStateChange, onMutated,
 }: RecentClassificationsProps) {
   const [savedRows, setSavedRows] = useState<PortalHistory[]>();
   const [error, setError] = useState('');
@@ -35,15 +40,41 @@ export function RecentClassifications({
   const [draftTier, setDraftTier] = useState<Tier>('Routine');
   const [busyId, setBusyId] = useState<string>();
   const [busyAction, setBusyAction] = useState<'save' | 'delete'>();
+  const activeReadRef = useRef<AbortController | null>(null);
+  const readGenerationRef = useRef(0);
+
+  function invalidateInFlightRead() {
+    readGenerationRef.current += 1;
+    activeReadRef.current?.abort();
+    activeReadRef.current = null;
+  }
 
   useEffect(() => {
+    const generation = ++readGenerationRef.current;
+    const startedSeq = getHistorySeq();
     const controller = new AbortController();
+    activeReadRef.current = controller;
+    onHistoryReadStateChange(true);
     setError('');
     InboxApi.request<{ results: PortalHistory[] }>('/classifications', 'GET', undefined, controller.signal)
-      .then(page => { if (!controller.signal.aborted) setSavedRows(page.results); })
-      .catch(cause => { if (!controller.signal.aborted) setError(describeError(cause)); });
-    return () => controller.abort();
-  }, [revision, describeError]);
+      .then(page => {
+        if (controller.signal.aborted || generation !== readGenerationRef.current) return;
+        setSavedRows(page.results);
+        onHistoryLoaded(startedSeq);
+      })
+      .catch(cause => {
+        if (controller.signal.aborted || generation !== readGenerationRef.current) return;
+        setError(describeError(cause));
+      })
+      .finally(() => {
+        if (activeReadRef.current === controller) activeReadRef.current = null;
+        if (generation === readGenerationRef.current) onHistoryReadStateChange(false);
+      });
+    return () => {
+      controller.abort();
+      if (activeReadRef.current === controller) activeReadRef.current = null;
+    };
+  }, [revision, describeError, getHistorySeq, onHistoryLoaded, onHistoryReadStateChange]);
 
   function startEdit(item: PortalHistory) {
     setActionError('');
@@ -66,10 +97,12 @@ export function RecentClassifications({
     try {
       await ensureSynced(id);
       const updated = await InboxApi.request<PortalHistory>(`/classifications/${id}`, 'PUT', { tier: draftTier });
+      invalidateInFlightRead();
       setSavedRows(current => current?.map(item => item.id === id ? updated : item) ?? [updated]);
       onUpdate(updated);
       setEditingId(undefined);
       setNotice(labels.classificationUpdated);
+      onMutated();
     } catch (cause) {
       setActionError(describeError(cause));
     } finally {
@@ -87,10 +120,12 @@ export function RecentClassifications({
     try {
       await ensureSynced(id);
       await InboxApi.request(`/classifications/${id}`, 'DELETE');
+      invalidateInFlightRead();
       setSavedRows(current => current?.filter(item => item.id !== id));
       onDelete(id);
       if (editingId === id) setEditingId(undefined);
       setNotice(labels.classificationDeleted);
+      onMutated();
     } catch (cause) {
       setActionError(describeError(cause));
     } finally {
