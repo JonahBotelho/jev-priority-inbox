@@ -2,13 +2,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
+import { AdminDashboard } from './AdminDashboard.js';
 import { ClassifierDemo } from './ClassifierDemo.js';
-import type { PortalDashboard, PortalUser } from '../shared/portal.js';
+import type { PortalUser } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 import { signedInDestination } from './PortalNavigation.js';
 import './portal.css';
 
-const timestamp = (value: string) => new Date(value).toLocaleString();
 const status = (error: unknown) => (error as { status?: number })?.status;
 function errorText(error: unknown): string {
   return error instanceof Error && !(error instanceof TypeError) ? error.message : en.unavailable;
@@ -64,10 +64,10 @@ export function Portal({ path }: { path: string }) {
       <button className="portal-secondary" onClick={() => void signOut()}>{labels.signOut}</button></div></header>
     <main className="portal-main"><nav className="portal-tabs" aria-label={labels.portal}>
       <a href="/app" aria-current={path === '/app' ? 'page' : undefined}>{labels.service}</a>
-      {user.role === 'admin' && <a href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>{labels.accounts}</a>}
+      {user.role === 'admin' && <a href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>{labels.adminDashboard}</a>}
       <a className="portal-inbox-link" href="/">{labels.liveInbox}</a>
     </nav>{error && <p className="portal-error" role="alert">{error}</p>}
-      {path === '/admin' ? <AdminDashboard /> : <ClassifierDemo userId={user.id} describeError={privateError} />}
+      {path === '/admin' ? <AdminDashboard describeError={privateError} /> : <ClassifierDemo userId={user.id} describeError={privateError} />}
     </main>
   </div>;
 }
@@ -101,25 +101,4 @@ function Login({ path }: { path: string }) {
     </form>{error && <p className="portal-error" role="alert">{error}</p>}
     <a className="portal-link-button" href={registering ? '/login' : '/register'}>{registering ? labels.toLogin : labels.toRegister}</a>
   </section></main>;
-}
-
-function AdminDashboard() {
-  const [data, setData] = useState<PortalDashboard>();
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setError('');
-    InboxApi.request<PortalDashboard>('/admin/dashboard', 'GET', undefined, controller.signal)
-      .then(list => { if (!controller.signal.aborted) setData(list); })
-      .catch(cause => { if (!controller.signal.aborted) setError(privateError(cause)); });
-    return () => controller.abort();
-  }, [attempt]);
-  return <section className="portal-card"><h1>{labels.accounts}</h1>
-    {error && <p role="alert">{error} <button className="portal-secondary" onClick={() => setAttempt(n => n + 1)}>{en.retry}</button></p>}
-    {data ? <div className="portal-table-wrap"><table><thead><tr><th>{labels.email}</th><th>{labels.role}</th>
-      <th>{labels.joined}</th><th>{labels.requestCount}</th></tr></thead><tbody>{data.users.map(user => <tr key={user.id}>
-        <td>{user.email}</td><td>{user.role === 'admin' ? labels.admin : labels.user}</td><td>{timestamp(user.createdAt)}</td><td>{user.requests}</td>
-      </tr>)}</tbody></table></div> : !error && <p>{en.loading}</p>}
-  </section>;
 }

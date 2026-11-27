@@ -3,7 +3,7 @@ import express, { Router, type ErrorRequestHandler, type NextFunction, type Requ
 import { en } from '../../locales/en.js';
 import { portalText as labels } from '../../locales/portal.js';
 import { jevModel, readClassificationInput } from '../../shared/jev.js';
-import type { PortalUser } from '../../shared/portal.js';
+import { readClassificationUpdate, type PortalUser } from '../../shared/portal.js';
 import type { Classifier } from '../adapters/Providers.js';
 import { TypeSafeJev } from '../adapters/TypeSafeJev.js';
 import { PriorityPolicy } from '../../shared/PriorityPolicy.js';
@@ -11,19 +11,24 @@ import type { PostgresInbox } from '../infrastructure/PostgresInbox.js';
 import { PostgresPortal } from '../infrastructure/PostgresPortal.js';
 import { PortalAuth } from './PortalAuth.js';
 import { BrowserDemoApi } from './BrowserDemoApi.js';
+import { EndpointStatsTracker } from './EndpointStatsTracker.js';
 
 const productionApi = 'https://jev-priority-inbox-api.onrender.com';
 const productionClient = 'https://jev-priority-inbox-client.onrender.com';
 const paths = ['/auth', '/classify', '/classifications', '/usage', '/admin', '/demo'];
+const uuidPattern = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
 
 export class PortalApi {
   readonly router = Router();
   readonly legacyManagement = Router();
+  readonly endpointStats: EndpointStatsTracker;
   private readonly attempts = new Map<string, number>();
   private resetAttemptsAt = 0;
 
   private constructor(private readonly store: PostgresPortal, private readonly auth: PortalAuth,
     private readonly adminEmail: string, private readonly origins: Set<string>, demo: BrowserDemoApi, private readonly classifier?: Classifier) {
+    this.endpointStats = new EndpointStatsTracker(store);
+    this.router.use(this.endpointStats.track('/v1'));
     this.router.use(paths, this.browserAccess, express.json({ limit: '128kb' }));
     this.router.post('/auth/register', this.register);
     this.router.post('/auth/login', this.login);
@@ -34,9 +39,13 @@ export class PortalApi {
     this.router.post('/demo/receipts', this.requireUser, demo.record);
     this.router.get('/usage/me', this.requireUser, async (_req, res) => res.json(await store.usage(res.locals.user.id)));
     this.router.get('/classifications', this.requireUser, async (_req, res) => res.json({ results: await store.history(res.locals.user.id) }));
+    this.router.put('/classifications/:id', this.requireUser, this.updateClassification);
+    this.router.delete('/classifications/:id', this.requireUser, this.deleteClassification);
     this.router.get('/admin/dashboard', this.requireUser, async (_req, res) => {
       if (res.locals.user.role !== 'admin') { res.status(403).json({ error: labels.adminRequired }); return; }
-      res.json(await store.dashboard());
+      await this.endpointStats.flush();
+      const { users, endpoints } = await store.dashboard();
+      res.json({ users, endpoints: this.endpointStats.mergeWithCatalog(endpoints) });
     });
     this.router.use(this.onError);
     this.legacyManagement.all('/admin/users/:id', this.requireUser);
@@ -89,12 +98,13 @@ export class PortalApi {
     res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
     res.vary('Origin');
     const origin = req.get('origin');
-    if ((origin && !this.origins.has(origin)) || (!origin && req.get('sec-fetch-site') === 'cross-site' && req.method === 'POST')) {
+    const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    if ((origin && !this.origins.has(origin)) || (!origin && req.get('sec-fetch-site') === 'cross-site' && isMutating)) {
       res.status(403).json({ error: en.forbidden }); return;
     }
     if (origin) res.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Timing-Allow-Origin': origin });
     if (req.method === 'OPTIONS') {
-      res.set({ 'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type',
+      res.set({ 'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Max-Age': '600' });
       res.sendStatus(204); return;
     }
@@ -180,6 +190,28 @@ export class PortalApi {
     const result = { tier: decision.tier, score: Math.round(decision.score), model: jevModel };
     await this.store.finishRequest(id, 200, durationMs, result);
     res.json({ id, ...result, provider: 'Jev', durationMs });
+  };
+
+  private updateClassification = async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    if (!uuidPattern.test(id)) { res.status(400).json({ error: en.invalid }); return; }
+    const update = readClassificationUpdate(req.body);
+    if (!update) { res.status(400).json({ error: labels.invalidClassificationUpdate }); return; }
+    const result = await this.store.updateClassification(res.locals.user.id, id, update);
+    if (result.status !== 200) {
+      res.status(result.status).json({ error: result.status === 404 ? labels.classificationNotFound : en.forbidden });
+      return;
+    }
+    res.json(result.record);
+  };
+
+  private deleteClassification = async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    if (!uuidPattern.test(id)) { res.status(400).json({ error: en.invalid }); return; }
+    const status = await this.store.deleteClassification(res.locals.user.id, id);
+    if (status === 404) { res.status(404).json({ error: labels.classificationNotFound }); return; }
+    if (status === 403) { res.status(403).json({ error: en.forbidden }); return; }
+    res.sendStatus(204);
   };
 
   private onError: ErrorRequestHandler = (err, _req, res, next) => {

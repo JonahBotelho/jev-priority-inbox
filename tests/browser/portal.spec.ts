@@ -7,7 +7,7 @@ import { priorityInboxText as inboxText } from '../../src/locales/priorityInbox.
 test('a member lands on the public inbox after registration and again after signing back in', async ({page}) => {
   const email = 'browser-member@example.test';
   const demoLink = page.getByRole('link', { name: inboxText.tryEmailDemo });
-  const directoryLink = page.getByRole('link', { name: text.accounts });
+  const directoryLink = page.getByRole('link', { name: text.adminDashboard });
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.status() === 401),
     page.goto('/'),
@@ -33,7 +33,14 @@ test('a member lands on the public inbox after registration and again after sign
   await page.getByLabel(text.message).fill(en.fixtures.signoff.text);
   await page.getByRole('button', {name:text.classify}).click();
   await expect(page.getByRole('status')).toContainText('Urgent');
-  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
+  const historyRows = page.getByRole('region', { name: text.history }).locator('tbody tr');
+  await expect(historyRows).toHaveCount(1);
+  // Edit priority via PUT /v1/classifications/:id and verify persistence across sign-out/sign-in.
+  await historyRows.first().getByRole('button', { name: text.edit }).click();
+  await historyRows.first().getByLabel(text.priority).selectOption('Emergency');
+  await historyRows.first().getByRole('button', { name: text.save }).click();
+  await expect(historyRows.first().getByLabel(text.priority)).toHaveCount(0);
+  await expect(historyRows.first().locator('.portal-tier')).toHaveText(en.tiers.Emergency);
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/app$/);
   await page.getByRole('button', {name:text.signOut}).click();
@@ -47,8 +54,13 @@ test('a member lands on the public inbox after registration and again after sign
   await expect(page).toHaveURL('/');
   await demoLink.click();
   await expect(page).toHaveURL('/app');
-  await expect(page.getByRole('region', { name: text.history }).locator('tbody tr')).toHaveCount(1);
-  await expect(page.locator('.portal-history')).toContainText('Urgent');
+  await expect(historyRows).toHaveCount(1);
+  await expect(page.locator('.portal-history')).toContainText(en.tiers.Emergency);
+  // Delete classification via DELETE /v1/classifications/:id and verify removal persists across reload.
+  await historyRows.first().getByRole('button', { name: text.delete }).click();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/auth/me') && response.ok()),
     page.getByRole('link', { name: text.liveInbox }).click(),
@@ -181,24 +193,181 @@ test('an untouched visible demo keeps its history current before the next classi
   expect(requests.filter(path => path === '/v1/demo/inference')).toHaveLength(1);
 });
 
-test('an administrator lands on Registered users and can return from the public inbox', async ({page}) => {
+test('an administrator lands on Admin dashboard, sees server-side endpoint stats, and can return from the public inbox', async ({page}) => {
   await page.goto('/login');
   await page.getByLabel(text.email).fill('admin@example.test');
   await page.getByLabel(text.password).fill('browser-test-only');
   await page.getByRole('button', {name:text.signIn}).click();
   await expect(page).toHaveURL('/admin');
-  await expect(page.getByRole('heading', {name:text.accounts})).toBeVisible();
-  await expect(page.getByRole('cell', {name:'admin@example.test', exact:true})).toBeVisible();
+  await expect(page.getByRole('heading', {name:text.adminDashboard})).toBeVisible();
+  const endpointRegion = page.getByRole('region', { name: text.endpointStats });
+  const usersRegion = page.getByRole('region', { name: text.accounts });
+  await expect(endpointRegion).toBeVisible();
+  await expect(usersRegion).toBeVisible();
+  await expect(endpointRegion.getByRole('cell', { name: '/v1/demo/inference', exact: true })).toBeVisible();
+  await expect(endpointRegion.getByRole('cell', { name: '/v1/priority', exact: true })).toBeVisible();
+  await expect(usersRegion.getByRole('cell', {name:'admin@example.test', exact:true})).toBeVisible();
   await expect(page.getByRole('table').getByRole('button')).toHaveCount(0);
+
   await page.getByRole('link', { name: text.service }).click();
   await expect(page.getByRole('heading', { name: text.classifier })).toBeVisible();
+  await page.getByLabel(text.subject).fill(en.fixtures.outage.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.outage.text);
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(en.tiers.Emergency);
+
   await page.setViewportSize({ width: 375, height: 800 });
   await page.getByRole('link', { name: text.liveInbox }).click();
   const navigation = page.getByRole('navigation', { name: text.portal });
-  await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.accounts]);
-  const directoryLink = navigation.getByRole('link', { name: text.accounts });
-  await expect(directoryLink).toHaveAttribute('href', '/admin');
-  await directoryLink.click();
+  await expect(navigation.getByRole('link')).toHaveText([inboxText.tryEmailDemo, text.adminDashboard]);
+  const dashboardLink = navigation.getByRole('link', { name: text.adminDashboard });
+  await expect(dashboardLink).toHaveAttribute('href', '/admin');
+  await dashboardLink.click();
   await expect(page).toHaveURL('/admin');
-  await expect(page.getByRole('heading', { name: text.accounts })).toBeVisible();
+  await expect(page.getByRole('heading', { name: text.adminDashboard })).toBeVisible();
+  const inferenceRow = endpointRegion.locator('tbody tr', { hasText: '/v1/demo/inference' });
+  await expect(inferenceRow).toContainText('POST');
+  await expect(inferenceRow.locator('td').last()).not.toHaveText('0');
+  await page.getByRole('button', { name: text.refresh }).click();
+  await expect(endpointRegion).toBeVisible();
+});
+
+test('two tabs reconcile edited and deleted classifications after receipt confirmation', async ({ browser }) => {
+  const context = await browser.newContext();
+  try {
+    const registration = await context.request.post('http://127.0.0.1:3101/v1/auth/register', {
+      data: { email: 'two-tab@example.test', password: 'two-tab-password' },
+    });
+    expect(registration.status()).toBe(201);
+
+    const tabOne = await context.newPage();
+    await tabOne.clock.install();
+    await tabOne.goto('/app');
+    const tabOneRows = tabOne.getByRole('region', { name: text.history }).locator('tbody tr');
+    await expect(tabOne.getByText(text.emptyHistory)).toBeVisible();
+
+    // Tab 1 classifies a message and waits for receipt confirmation and its post-ack history read.
+    const postAckHistory = tabOne.waitForResponse(
+      response => response.url().endsWith('/v1/classifications') && response.request().method() === 'GET' && response.ok(),
+    );
+    await tabOne.getByLabel(text.subject).fill(en.fixtures.signoff.subject);
+    await tabOne.getByLabel(text.message).fill(en.fixtures.signoff.text);
+    await tabOne.getByRole('button', { name: text.classify, exact: true }).click();
+    await expect(tabOneRows).toHaveCount(1);
+    await expect(tabOneRows.first().locator('.portal-tier')).toHaveText(en.tiers.Urgent);
+    await postAckHistory;
+
+    // Tab 2 edits the classification priority to Emergency.
+    const tabTwo = await context.newPage();
+    await tabTwo.goto('/app');
+    const tabTwoRows = tabTwo.getByRole('region', { name: text.history }).locator('tbody tr');
+    await expect(tabTwoRows).toHaveCount(1);
+    await tabTwoRows.first().getByRole('button', { name: text.edit }).click();
+    await tabTwoRows.first().getByLabel(text.priority).selectOption('Emergency');
+    await tabTwoRows.first().getByRole('button', { name: text.save }).click();
+    await expect(tabTwoRows.first().getByLabel(text.priority)).toHaveCount(0);
+    await expect(tabTwoRows.first().locator('.portal-tier')).toHaveText(en.tiers.Emergency);
+
+    // Tab 1 returns to view, refreshes history without reloading, and reflects Tab 2's edit.
+    await tabOne.bringToFront();
+    await tabOne.clock.fastForward(10 * 60 * 1000);
+    await expect(tabOneRows.first().locator('.portal-tier')).toHaveText(en.tiers.Emergency);
+
+    // Tab 2 deletes the classification; Tab 1 returns to view, refreshes, and reflects the deletion.
+    await tabTwo.bringToFront();
+    await tabTwoRows.first().getByRole('button', { name: text.delete }).click();
+    await expect(tabTwo.getByText(text.emptyHistory)).toBeVisible();
+    await tabOne.bringToFront();
+    await tabOne.clock.fastForward(10 * 60 * 1000);
+    await expect(tabOne.getByText(text.emptyHistory)).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test('a stale pre-mutation history read cannot undo a completed edit or delete', async ({ page }) => {
+  const api = 'http://127.0.0.1:3101/v1';
+  const registration = await page.request.post(api + '/auth/register', {
+    data: { email: 'stale-read@example.test', password: 'stale-read-password' },
+  });
+  expect(registration.status()).toBe(201);
+  const created = await page.request.post(api + '/classify', { data: en.fixtures.signoff });
+  expect(created.status()).toBe(200);
+
+  await page.clock.install();
+  await page.goto('/app');
+  const rows = page.getByRole('region', { name: text.history }).locator('tbody tr');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first().locator('.portal-tier')).toHaveText(en.tiers.Urgent);
+
+  // Hold a pre-edit GET /v1/classifications while completing PUT, then release the stale response.
+  let releasePreEdit!: () => void;
+  const preEditHeld = new Promise<void>(resolve => { releasePreEdit = resolve; });
+  let preEditIntercepted = false;
+  await page.route('**/v1/classifications', async route => {
+    if (!preEditIntercepted && route.request().method() === 'GET') {
+      preEditIntercepted = true;
+      const response = await route.fetch();
+      const body = await response.json();
+      await preEditHeld;
+      await route.fulfill({ response, json: body }).catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect.poll(() => preEditIntercepted).toBe(true);
+  await rows.first().getByRole('button', { name: text.edit }).click();
+  await rows.first().getByLabel(text.priority).selectOption('Emergency');
+  await rows.first().getByRole('button', { name: text.save }).click();
+  await expect(rows.first().getByLabel(text.priority)).toHaveCount(0);
+  await expect(rows.first().locator('.portal-tier')).toHaveText(en.tiers.Emergency);
+  releasePreEdit();
+  await expect(rows.first().locator('.portal-tier')).toHaveText(en.tiers.Emergency);
+  await page.unroute('**/v1/classifications');
+
+  // Hold a pre-delete GET /v1/classifications while completing DELETE, then release the stale response.
+  let releasePreDelete!: () => void;
+  const preDeleteHeld = new Promise<void>(resolve => { releasePreDelete = resolve; });
+  let preDeleteIntercepted = false;
+  await page.route('**/v1/classifications', async route => {
+    if (!preDeleteIntercepted && route.request().method() === 'GET') {
+      preDeleteIntercepted = true;
+      const response = await route.fetch();
+      const body = await response.json();
+      await preDeleteHeld;
+      await route.fulfill({ response, json: body }).catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect.poll(() => preDeleteIntercepted).toBe(true);
+  await rows.first().getByRole('button', { name: text.delete }).click();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+  releasePreDelete();
+  await expect(page.getByText(text.emptyHistory)).toBeVisible();
+});
+
+test('admin dashboard renders registered users and a localized notice when endpoints are omitted', async ({ page }) => {
+  await page.route('**/v1/admin/dashboard', route => route.fulfill({
+    json: {
+      users: [{ id: 'legacy-admin', email: 'admin@example.test', role: 'admin', createdAt: '2026-11-24T17:15:00.000Z', requests: 5 }],
+    },
+  }));
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByLabel(text.email).fill('admin@example.test');
+  await page.getByLabel(text.password).fill('browser-test-only');
+  await page.getByRole('button', { name: text.signIn }).click();
+  await expect(page).toHaveURL('/admin');
+  const endpointRegion = page.getByRole('region', { name: text.endpointStats });
+  const usersRegion = page.getByRole('region', { name: text.accounts });
+  await expect(endpointRegion).toContainText(text.endpointStatsUnavailable);
+  await expect(usersRegion.getByRole('cell', { name: 'admin@example.test', exact: true })).toBeVisible();
+  expect(pageErrors).toEqual([]);
 });
