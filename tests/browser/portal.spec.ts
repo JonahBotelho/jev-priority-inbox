@@ -405,3 +405,43 @@ test('signed-in users see live API consumption and the 20-call warning while ser
   await page.getByRole('link', { name: text.liveInbox }).click();
   await expect(page.getByText(text.freeLimitWarning)).toBeVisible();
 });
+
+test('switching between Admin dashboard and Classifier demo reuses cached history without extra API calls', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel(text.email).fill('admin@example.test');
+  await page.getByLabel(text.password).fill('browser-test-only');
+  await page.getByRole('button', { name: text.signIn }).click();
+  await expect(page).toHaveURL('/admin');
+
+  let historyReads = 0;
+  page.on('request', request => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/v1/classifications') historyReads += 1;
+  });
+
+  // First switch to /app loads history once.
+  await page.getByRole('link', { name: text.service }).click();
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('region', { name: text.history })).toBeVisible();
+  await expect.poll(() => historyReads).toBe(1);
+
+  // Switching back and forth between /admin and /app reuses the in-memory cache with 0 extra reads.
+  await page.getByRole('link', { name: text.adminDashboard }).click();
+  await expect(page).toHaveURL('/admin');
+  await expect(page.getByRole('region', { name: text.endpointStats })).toBeVisible();
+
+  await page.getByRole('link', { name: text.service }).click();
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('region', { name: text.history })).toBeVisible();
+  expect(historyReads).toBe(1);
+
+  // Browser Back and Forward also switch tabs cleanly without extra history reads.
+  await page.goBack();
+  await expect(page).toHaveURL('/admin');
+  await page.goForward();
+  await expect(page).toHaveURL('/app');
+  expect(historyReads).toBe(1);
+
+  // Clicking Refresh explicitly fetches fresh history.
+  await page.getByRole('region', { name: text.history }).getByRole('button', { name: text.refresh }).click();
+  await expect.poll(() => historyReads).toBe(2);
+});

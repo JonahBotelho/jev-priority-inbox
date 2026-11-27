@@ -1,14 +1,20 @@
 // Private account, classifier and administrator pages served alongside the public inbox.
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type MouseEvent } from 'react';
 import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
 import { AdminDashboard } from './AdminDashboard.js';
 import { ClassifierDemo } from './ClassifierDemo.js';
-import type { PortalUsage, PortalUser } from '../shared/portal.js';
+import type { PortalHistory, PortalUsage, PortalUser } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 import { signedInDestination } from './PortalNavigation.js';
 import { UsageBanner, type UsageDisplay } from './UsageBanner.js';
 import './portal.css';
+
+interface CachedHistory {
+  userId: string;
+  rows: PortalHistory[];
+  stale: boolean;
+}
 
 function parseUsagePayload(payload: unknown): UsageDisplay | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
@@ -38,8 +44,10 @@ function Brand() {
 }
 
 export function Portal({ path }: { path: string }) {
+  const [activePath, setActivePath] = useState(path);
   const [user, setUser] = useState<PortalUser>();
   const [usage, setUsage] = useState<UsageDisplay>();
+  const [historyCache, setHistoryCache] = useState<CachedHistory>();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -58,6 +66,15 @@ export function Portal({ path }: { path: string }) {
     window.addEventListener('pageshow', restored);
     return () => window.removeEventListener('pageshow', restored);
   }, []);
+  useEffect(() => {
+    const onPopState = () => {
+      const next = window.location.pathname.replace(/\/+$/, '');
+      if (next === '/app' || (next === '/admin' && user?.role === 'admin')) setActivePath(next);
+      else window.location.reload();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [user?.role]);
   useEffect(() => {
     const controller = new AbortController();
     setError('');
@@ -90,6 +107,25 @@ export function Portal({ path }: { path: string }) {
     return () => controller.abort();
   }, [user]);
 
+  const userId = user?.id;
+  const cacheHistory = useCallback((rows: PortalHistory[]) => {
+    if (!userId) return;
+    setHistoryCache({ userId, rows, stale: false });
+  }, [userId]);
+
+  const invalidateHistoryCache = useCallback(() => {
+    setHistoryCache(current => current ? { ...current, stale: true } : undefined);
+  }, []);
+
+  function navigateTab(event: MouseEvent<HTMLAnchorElement>, target: '/app' | '/admin') {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (target === '/admin' && user?.role !== 'admin') return;
+    if (target === activePath) return;
+    window.history.pushState(null, '', target);
+    setActivePath(target);
+  }
+
   async function signOut() {
     try { await InboxApi.request('/auth/logout', 'POST'); window.location.replace('/login'); }
     catch (cause) { setError(errorText(cause)); }
@@ -98,16 +134,20 @@ export function Portal({ path }: { path: string }) {
     ? <div role="alert">{error} <button className="portal-secondary" onClick={() => setAttempt(n => n + 1)}>{en.retry}</button></div>
     : en.loading}</main>;
   if (!user) return <Login path={path} />;
+  const cachedSavedRows = historyCache && historyCache.userId === user.id && !historyCache.stale ? historyCache.rows : undefined;
   return <div className="portal-shell">
     <header className="portal-header"><Brand /><div className="portal-identity">
       <span>{user.email}<small>{user.role === 'admin' ? labels.admin : labels.user}</small></span>
       <button className="portal-secondary" onClick={() => void signOut()}>{labels.signOut}</button></div></header>
     <main className="portal-main"><nav className="portal-tabs" aria-label={labels.portal}>
-      <a href="/app" aria-current={path === '/app' ? 'page' : undefined}>{labels.service}</a>
-      {user.role === 'admin' && <a href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>{labels.adminDashboard}</a>}
+      <a href="/app" aria-current={activePath === '/app' ? 'page' : undefined} onClick={event => navigateTab(event, '/app')}>{labels.service}</a>
+      {user.role === 'admin' && <a href="/admin" aria-current={activePath === '/admin' ? 'page' : undefined} onClick={event => navigateTab(event, '/admin')}>{labels.adminDashboard}</a>}
       <a className="portal-inbox-link" href="/">{labels.liveInbox}</a>
     </nav><UsageBanner usage={usage} />{error && <p className="portal-error" role="alert">{error}</p>}
-      {path === '/admin' ? <AdminDashboard describeError={privateError} /> : <ClassifierDemo userId={user.id} describeError={privateError} />}
+      {activePath === '/admin' ? <AdminDashboard describeError={privateError} /> : (
+        <ClassifierDemo userId={user.id} describeError={privateError} cachedSavedRows={cachedSavedRows}
+          onCacheHistory={cacheHistory} onInvalidateHistoryCache={invalidateHistoryCache} />
+      )}
     </main>
   </div>;
 }

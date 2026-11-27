@@ -10,6 +10,9 @@ type DescribeError = (error: unknown) => string;
 
 interface RecentClassificationsProps {
   localRows: PortalHistory[];
+  initialSavedRows?: PortalHistory[];
+  onSavedRowsChange?: (rows: PortalHistory[]) => void;
+  onInvalidateCache?: () => void;
   describeError: DescribeError;
   revision: number;
   retry: () => void;
@@ -29,10 +32,12 @@ export function mergeClassificationHistory(current: PortalHistory[], incoming: P
 }
 
 export function RecentClassifications({
-  localRows, describeError, revision, retry, ensureSynced, onUpdate, onDelete,
-  getHistorySeq, onHistoryLoaded, onHistoryReadStateChange, onMutated,
+  localRows, initialSavedRows, onSavedRowsChange, onInvalidateCache, describeError, revision, retry,
+  ensureSynced, onUpdate, onDelete, getHistorySeq, onHistoryLoaded, onHistoryReadStateChange, onMutated,
 }: RecentClassificationsProps) {
-  const [savedRows, setSavedRows] = useState<PortalHistory[]>();
+  const [savedRows, setSavedRows] = useState<PortalHistory[] | undefined>(() => initialSavedRows);
+  const [hadInitialCache] = useState(() => initialSavedRows !== undefined);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
@@ -50,16 +55,19 @@ export function RecentClassifications({
   }
 
   useEffect(() => {
+    if (revision === 0 && hadInitialCache) return;
     const generation = ++readGenerationRef.current;
     const startedSeq = getHistorySeq();
     const controller = new AbortController();
     activeReadRef.current = controller;
+    setLoading(true);
     onHistoryReadStateChange(true);
     setError('');
     InboxApi.request<{ results: PortalHistory[] }>('/classifications', 'GET', undefined, controller.signal)
       .then(page => {
         if (controller.signal.aborted || generation !== readGenerationRef.current) return;
         setSavedRows(page.results);
+        onSavedRowsChange?.(page.results);
         onHistoryLoaded(startedSeq);
       })
       .catch(cause => {
@@ -68,13 +76,16 @@ export function RecentClassifications({
       })
       .finally(() => {
         if (activeReadRef.current === controller) activeReadRef.current = null;
-        if (generation === readGenerationRef.current) onHistoryReadStateChange(false);
+        if (generation === readGenerationRef.current) {
+          setLoading(false);
+          onHistoryReadStateChange(false);
+        }
       });
     return () => {
       controller.abort();
       if (activeReadRef.current === controller) activeReadRef.current = null;
     };
-  }, [revision, describeError, getHistorySeq, onHistoryLoaded, onHistoryReadStateChange]);
+  }, [revision, hadInitialCache, describeError, getHistorySeq, onHistoryLoaded, onHistoryReadStateChange, onSavedRowsChange]);
 
   function startEdit(item: PortalHistory) {
     setActionError('');
@@ -98,6 +109,7 @@ export function RecentClassifications({
       await ensureSynced(id);
       const updated = await InboxApi.request<PortalHistory>(`/classifications/${id}`, 'PUT', { tier: draftTier });
       invalidateInFlightRead();
+      onInvalidateCache?.();
       setSavedRows(current => current?.map(item => item.id === id ? updated : item) ?? [updated]);
       onUpdate(updated);
       setEditingId(undefined);
@@ -121,6 +133,7 @@ export function RecentClassifications({
       await ensureSynced(id);
       await InboxApi.request(`/classifications/${id}`, 'DELETE');
       invalidateInFlightRead();
+      onInvalidateCache?.();
       setSavedRows(current => current?.filter(item => item.id !== id));
       onDelete(id);
       if (editingId === id) setEditingId(undefined);
@@ -137,7 +150,12 @@ export function RecentClassifications({
   const rows = mergeClassificationHistory(savedRows ?? [], localRows);
 
   return <section className="portal-card portal-history" aria-labelledby="recent-classifications">
-    <h2 id="recent-classifications">{labels.history}</h2>
+    <div className="portal-section-header">
+      <h2 id="recent-classifications">{labels.history}</h2>
+      <button type="button" className="portal-secondary" disabled={loading} onClick={retry}>
+        {loading && savedRows ? labels.refreshing : labels.refresh}
+      </button>
+    </div>
     {error && <p role="alert">{error}{' '}
       <button type="button" className="portal-secondary" onClick={retry}>{en.retry}</button>
     </p>}
