@@ -51,6 +51,7 @@ The [Resend adapter](src/server/adapters/ResendMailbox.ts) checks the actual del
 - **Netlify Function.** [netlify.toml](netlify.toml) deploys [jev-classify](netlify/functions/jev-classify.ts) from `main` to `isa-term-project`. Set the same `JEV_FUNCTION_SECRET` on the function. Netlify AI Gateway supplies `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL`. Enable AI features, complete a production deploy and allow public access to the production function so Render can reach it. [AI Gateway configuration](https://docs.netlify.com/build/ai-gateway/overview/)
 - **Automatic Jev deployments.** The repository owner registers the Netlify SSH public key with read-only access and subscribes the Netlify GitHub webhook to push events with content type `application/json`. [Repository linking guide](https://answers.netlify.com/t/support-guide-linking-a-repository-via-api/121)
 - **Verify.** Visit `/v1/health` on the API, then open the client in a fresh browser. The inbox loads without a session. `GET /v1/priority` reports the saved cards and any pending or failed reviews.
+- **API documentation.** The hosted Swagger UI is available at [https://jev-priority-inbox-api.onrender.com/doc/](https://jev-priority-inbox-api.onrender.com/doc/), with its OpenAPI 3.0 document at `/openapi.json`. It documents the implemented `/v1` API, cookie authentication, request and response examples, and status codes.
 
 ## Development
 

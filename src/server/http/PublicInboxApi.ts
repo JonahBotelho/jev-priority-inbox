@@ -2,11 +2,13 @@
 import express from 'express';
 import type { PublicPriorityInbox } from '../application/PublicPriorityInbox.js';
 import type { PortalApi } from '../application/PortalApi.js';
+import { mountApiDocumentation } from './ApiDocumentation.js';
 
 export function createPublicInboxApi(inbox: PublicPriorityInbox, portal?: PortalApi) {
   const app = express();
   app.disable('x-powered-by');
   if (process.env.RENDER === 'true') app.set('trust proxy', 1);
+  mountApiDocumentation(app);
   if (portal) app.use(portal.endpointStats.track());
   app.use(['/v1/health', '/v1/priority', '/v1/inbound'], (_request, response, next) => {
     response.set({ 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });

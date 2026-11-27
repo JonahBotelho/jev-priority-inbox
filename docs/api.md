@@ -1,5 +1,7 @@
 # Inbox and account portal API
 
+The hosted interactive documentation is [Swagger UI](https://jev-priority-inbox-api.onrender.com/doc/); its machine-readable OpenAPI 3.0 document is served at `/openapi.json`. The API is version 1, identified by the `/v1` path prefix. The OpenAPI document is the endpoint-level reference for the deployed implementation.
+
 The public inbox reads JSON under `/v1` without cookies. Resend submits signed delivery events to a separate POST endpoint. The private portal uses session cookies and a separate set of routes.
 
 ## GET /v1/health
