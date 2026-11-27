@@ -81,3 +81,7 @@ FROM api_usage
 WHERE NOT EXISTS (SELECT 1 FROM api_user_endpoint_stats)
 GROUP BY user_id, endpoint
 ON CONFLICT (user_id, method, endpoint) DO NOTHING;
+
+-- Remove historical quota-check rows now that GET /v1/usage/me is excluded from free-call accounting.
+DELETE FROM api_endpoint_stats WHERE method = 'GET' AND endpoint = '/v1/usage/me';
+DELETE FROM api_user_endpoint_stats WHERE method = 'GET' AND endpoint = '/v1/usage/me';

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { en } from '../locales/en.js';
 import { portalText } from '../locales/portal.js';
 import { priorityInboxText as labels } from '../locales/priorityInbox.js';
-import type { PortalUser } from '../shared/portal.js';
+import type { ApiUsageQuota, PortalUser } from '../shared/portal.js';
 import type { Card, PublicInboxSnapshot, RoutineEmail } from '../shared/types.js';
 import { InboxApi } from './InboxApi.js';
 import './priority-inbox.css';
@@ -11,37 +11,13 @@ import './priority-inbox.css';
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
-function InboxNavigation() {
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    let pendingCheck: AbortController | undefined;
-
-    async function refreshRole() {
-      pendingCheck?.abort();
-      if (document.hidden) {
-        setIsAdmin(false);
-        return;
-      }
-      const request = new AbortController();
-      pendingCheck = request;
-      try {
-        const account = await InboxApi.request<PortalUser>('/auth/me', 'GET', undefined, request.signal);
-        if (!request.signal.aborted) setIsAdmin(account.role === 'admin');
-      } catch {
-        if (!request.signal.aborted) setIsAdmin(false);
-      }
-    }
-
-    void refreshRole();
-    document.addEventListener('visibilitychange', refreshRole);
-    return () => {
-      pendingCheck?.abort();
-      document.removeEventListener('visibilitychange', refreshRole);
-    };
-  }, []);
+function InboxNavigation({ isAdmin, usage }: { isAdmin: boolean; usage?: ApiUsageQuota }) {
+  const usageText = usage && (usage.limitExceeded
+    ? portalText.usageExceededSummary(usage.requests, usage.freeLimit)
+    : portalText.usageSummary(usage.requests, usage.freeLimit));
 
   return <nav className="inbox-portal-nav" aria-label={portalText.portal}>
+    {usageText && <span className={`inbox-usage-pill${usage.limitExceeded ? ' exceeded' : ''}`}>{usageText}</span>}
     <a href="/app">{labels.tryEmailDemo}</a>
     {isAdmin && <a className="inbox-admin-link" href="/admin">{portalText.adminDashboard}</a>}
   </nav>;
@@ -104,6 +80,43 @@ export function PriorityInbox() {
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [routineExpanded, setRoutineExpanded] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [usage, setUsage] = useState<ApiUsageQuota>();
+
+  useEffect(() => {
+    let pendingCheck: AbortController | undefined;
+    const stopUsage = InboxApi.onUsageChange(quota => {
+      setUsage(current => current && current.requests > quota.requests ? current : quota);
+    });
+
+    async function refreshSession() {
+      pendingCheck?.abort();
+      if (document.hidden) {
+        setIsAdmin(false);
+        setUsage(undefined);
+        return;
+      }
+      const request = new AbortController();
+      pendingCheck = request;
+      try {
+        const account = await InboxApi.request<PortalUser>('/auth/me', 'GET', undefined, request.signal);
+        if (!request.signal.aborted) setIsAdmin(account.role === 'admin');
+      } catch {
+        if (!request.signal.aborted) {
+          setIsAdmin(false);
+          setUsage(undefined);
+        }
+      }
+    }
+
+    void refreshSession();
+    document.addEventListener('visibilitychange', refreshSession);
+    return () => {
+      stopUsage();
+      pendingCheck?.abort();
+      document.removeEventListener('visibilitychange', refreshSession);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -152,9 +165,10 @@ export function PriorityInbox() {
   return <div className="inbox-page">
     <header className="inbox-masthead">
       <div className="inbox-width wordmark"><span className="brand-stamp" aria-hidden="true"><i /></span>{en.brand}
-        <InboxNavigation /></div>
+        <InboxNavigation isAdmin={isAdmin} usage={usage} /></div>
     </header>
     <main className="inbox-width">
+      {usage?.limitExceeded && <p className="inbox-usage-warning" role="alert">{portalText.freeLimitWarning}</p>}
       <section className="address-panel" aria-label={labels.addressLabel}>
         <div className="address-content">
           <p className="address-label">{labels.addressLabel}</p>

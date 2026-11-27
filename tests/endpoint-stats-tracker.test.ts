@@ -98,7 +98,6 @@ test('EndpointStatsTracker records normalized Express routes, per-user attributi
   assert.equal(users['user-b'], 1);
   // Tracked catalog routes without traffic still appear with 0 counts.
   assert.equal(countOf('POST', '/v1/classify'), 0);
-  assert.equal(countOf('GET', '/v1/usage/me'), 0);
   assert.equal(countOf('GET', '/v1/classifications'), 0);
   assert.equal(countOf('POST', '/v1/inbound'), 0);
   assert.equal(countOf('POST', '/v1/demo/receipts'), 0);
@@ -106,6 +105,7 @@ test('EndpointStatsTracker records normalized Express routes, per-user attributi
   assert.equal(countOf('GET', '/v1/health'), undefined);
   assert.equal(countOf('POST', '/v1/auth/login'), undefined);
   assert.equal(countOf('GET', '/v1/auth/me'), undefined);
+  assert.equal(countOf('GET', '/v1/usage/me'), undefined);
   assert.equal(countOf('GET', '/v1/admin/dashboard'), undefined);
   assert.equal(countOf('GET', '/doc'), undefined);
   assert.equal(countOf('GET', '/doc/openapi.json'), undefined);

@@ -22,10 +22,16 @@
 .portal-identity small { color: #7a8495; }
 .portal-secondary { background: #eef1f6; color: #293850; }
 .portal-main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 60px; }
-.portal-tabs { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dce1ea; margin-bottom: 30px; }
+.portal-tabs { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dce1ea; margin-bottom: 22px; }
 .portal-tabs a { text-decoration: none; color: #62708a; background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 14px; cursor: pointer; font: inherit; font-size: 13px; }
 .portal-tabs a[aria-current='page'] { color: #195950; border-bottom-color: #2a695e; font-weight: 700; }
 .portal-tabs .portal-inbox-link { margin-left: auto; }
+.portal-usage-wrap { display: grid; gap: 10px; margin-bottom: 22px; }
+.portal-usage-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; background: #fff; border: 1px solid #dbe3db; border-radius: 10px; font-size: 13px; }
+.portal-usage-label { color: #52665e; font-weight: 600; }
+.portal-usage-count { display: inline-block; border-radius: 999px; padding: 4px 11px; background: #edf1ed; color: #195950; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.portal-usage-count.exceeded { background: #fcf0d5; color: #80540b; }
+.portal-warning { margin: 0; border-radius: 8px; padding: 12px 16px; background: #fcf0d5; color: #80540b; border: 1px solid #ebd197; font-size: 13px; font-weight: 600; line-height: 1.5; }
 .portal-intro { margin: 0 0 24px; max-width: 700px; }
 .portal-content-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
 .portal-history { margin-top: 18px; }

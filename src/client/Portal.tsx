@@ -4,10 +4,26 @@ import { en } from '../locales/en.js';
 import { portalText as labels } from '../locales/portal.js';
 import { AdminDashboard } from './AdminDashboard.js';
 import { ClassifierDemo } from './ClassifierDemo.js';
-import type { PortalUser } from '../shared/portal.js';
+import type { PortalUsage, PortalUser } from '../shared/portal.js';
 import { InboxApi } from './InboxApi.js';
 import { signedInDestination } from './PortalNavigation.js';
+import { UsageBanner, type UsageDisplay } from './UsageBanner.js';
 import './portal.css';
+
+function parseUsagePayload(payload: unknown): UsageDisplay | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const candidate = payload as Partial<PortalUsage>;
+  if (typeof candidate.requests !== 'number' || typeof candidate.freeLimit !== 'number'
+    || typeof candidate.limitExceeded !== 'boolean') return undefined;
+  return {
+    requests: candidate.requests,
+    freeLimit: candidate.freeLimit,
+    remainingFreeCalls: typeof candidate.remainingFreeCalls === 'number'
+      ? candidate.remainingFreeCalls : Math.max(0, candidate.freeLimit - candidate.requests),
+    limitExceeded: candidate.limitExceeded,
+    warning: typeof candidate.warning === 'string' ? candidate.warning : null,
+  };
+}
 
 const status = (error: unknown) => (error as { status?: number })?.status;
 function errorText(error: unknown): string {
@@ -23,10 +39,20 @@ function Brand() {
 
 export function Portal({ path }: { path: string }) {
   const [user, setUser] = useState<PortalUser>();
+  const [usage, setUsage] = useState<UsageDisplay>();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const authPage = path === '/login' || path === '/register';
+  useEffect(() => InboxApi.onUsageChange(quota => {
+    setUsage(current => {
+      if (current && current.requests > quota.requests) return current;
+      return {
+        ...quota,
+        warning: quota.limitExceeded ? (current?.warning || labels.freeLimitWarning) : null,
+      };
+    });
+  }), []);
   useEffect(() => {
     const restored = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
     window.addEventListener('pageshow', restored);
@@ -43,12 +69,26 @@ export function Portal({ path }: { path: string }) {
     }).catch(cause => {
       if (controller.signal.aborted) return;
       if (status(cause) === 401) {
+        setUsage(undefined);
         if (authPage) setReady(true);
         else window.location.replace('/login');
       } else setError(errorText(cause));
     });
     return () => controller.abort();
   }, [path, authPage, attempt]);
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
+    InboxApi.request<PortalUsage>('/usage/me', 'GET', undefined, controller.signal)
+      .then(summary => {
+        if (controller.signal.aborted) return;
+        const parsed = parseUsagePayload(summary);
+        if (!parsed) return;
+        setUsage(current => current && current.requests > parsed.requests ? current : parsed);
+      })
+      .catch(() => { /* Usage display stays resilient during staggered deploys or transient errors. */ });
+    return () => controller.abort();
+  }, [user]);
 
   async function signOut() {
     try { await InboxApi.request('/auth/logout', 'POST'); window.location.replace('/login'); }
@@ -66,7 +106,7 @@ export function Portal({ path }: { path: string }) {
       <a href="/app" aria-current={path === '/app' ? 'page' : undefined}>{labels.service}</a>
       {user.role === 'admin' && <a href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>{labels.adminDashboard}</a>}
       <a className="portal-inbox-link" href="/">{labels.liveInbox}</a>
-    </nav>{error && <p className="portal-error" role="alert">{error}</p>}
+    </nav><UsageBanner usage={usage} />{error && <p className="portal-error" role="alert">{error}</p>}
       {path === '/admin' ? <AdminDashboard describeError={privateError} /> : <ClassifierDemo userId={user.id} describeError={privateError} />}
     </main>
   </div>;

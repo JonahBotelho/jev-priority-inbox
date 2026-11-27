@@ -4,10 +4,17 @@ import { PriorityPolicy } from './PriorityPolicy.js';
 
 export type PortalRole = 'user' | 'admin';
 export const validTiers: readonly Tier[] = ['Emergency', 'Urgent', 'Routine'];
+export const freeApiCallLimit = 20;
 export interface PortalUser { id: string; email: string; role: PortalRole }
 export interface ClassificationUpdate { tier: Tier }
-export interface PortalUsage {
+export interface ApiUsageQuota {
   requests: number;
+  freeLimit: number;
+  remainingFreeCalls: number;
+  limitExceeded: boolean;
+}
+export interface PortalUsage extends ApiUsageQuota {
+  warning: string | null;
   successful: number;
   lastRequest: string | null;
   netlifyCreditBalance: { remaining: string; checkedAt: string } | null;
@@ -47,4 +54,15 @@ export function readClassificationUpdate(body: unknown): ClassificationUpdate | 
   const { tier } = body as Record<string, unknown>;
   if (typeof tier !== 'string' || !validTiers.includes(tier as Tier)) return undefined;
   return { tier: tier as Tier };
+}
+
+export function buildUsageQuota(requests: number, freeLimit = freeApiCallLimit): ApiUsageQuota {
+  const safeLimit = Number.isFinite(freeLimit) && freeLimit > 0 ? Math.trunc(freeLimit) : freeApiCallLimit;
+  const safeRequests = Number.isFinite(requests) && requests > 0 ? Math.trunc(requests) : 0;
+  return {
+    requests: safeRequests,
+    freeLimit: safeLimit,
+    remainingFreeCalls: Math.max(0, safeLimit - safeRequests),
+    limitExceeded: safeRequests >= safeLimit,
+  };
 }

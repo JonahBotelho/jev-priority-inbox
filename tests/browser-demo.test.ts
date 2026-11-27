@@ -95,9 +95,11 @@ test('the demo returns probabilities before a DB write and records authentic pro
   assert.equal((await post('/demo/inference', message, member)).status, 200);
   await t.waitFor(async () => {
     const usage = await read('/usage/me', member);
-    assert.deepEqual([usage.requests, usage.successful], [3, 2]);
+    assert.deepEqual([usage.requests, usage.successful], [8, 2]);
+    assert.equal(usage.freeLimit, 20);
+    assert.equal(usage.limitExceeded, false);
   });
   assert.equal((await read('/classifications', member)).results.length, 2);
-  assert.equal((await read('/usage/me', other)).requests, 0);
+  assert.equal((await read('/usage/me', other)).requests, 2);
   assert.equal(providerCalls, 3);
 });
