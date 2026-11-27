@@ -37,7 +37,12 @@ export class PortalApi {
     this.router.post('/classify', this.requireUser, this.classify);
     this.router.post('/demo/inference', this.requireUser, demo.infer);
     this.router.post('/demo/receipts', this.requireUser, demo.record);
-    this.router.get('/usage/me', this.requireUser, async (_req, res) => res.json(await store.usage(res.locals.user.id)));
+    this.router.get('/usage/me', this.requireUser, async (_req, res) => {
+      await this.endpointStats.flushUser(res.locals.user.id);
+      const summary = await store.usage(res.locals.user.id);
+      res.locals.apiRequests = summary.requests;
+      res.json(summary);
+    });
     this.router.get('/classifications', this.requireUser, async (_req, res) => res.json({ results: await store.history(res.locals.user.id) }));
     this.router.put('/classifications/:id', this.requireUser, this.updateClassification);
     this.router.delete('/classifications/:id', this.requireUser, this.deleteClassification);
@@ -102,7 +107,12 @@ export class PortalApi {
     if ((origin && !this.origins.has(origin)) || (!origin && req.get('sec-fetch-site') === 'cross-site' && isMutating)) {
       res.status(403).json({ error: en.forbidden }); return;
     }
-    if (origin) res.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Timing-Allow-Origin': origin });
+    if (origin) res.set({
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Expose-Headers': 'X-API-Usage-Count, X-API-Free-Limit, X-API-Limit-Exceeded',
+      'Timing-Allow-Origin': origin,
+    });
     if (req.method === 'OPTIONS') {
       res.set({ 'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Max-Age': '600' });
@@ -157,10 +167,12 @@ export class PortalApi {
   private requireUser = async (req: Request, res: Response, next: NextFunction) => {
     const started = performance.now();
     const claims = this.auth.claims(req);
-    const user = claims && await this.store.sessionUser(claims.sessionId, claims.userId);
+    const session = claims && await this.store.sessionUser(claims.sessionId, claims.userId);
     res.append('Server-Timing', `session;dur=${(performance.now() - started).toFixed(1)}`);
-    if (!user) { res.status(401).json({ error: en.unauthorized }); return; }
-    res.locals.user = user; next();
+    if (!session) { res.status(401).json({ error: en.unauthorized }); return; }
+    res.locals.user = session.user;
+    res.locals.apiRequests = session.apiRequests;
+    next();
   };
 
   private logout = async (req: Request, res: Response) => {

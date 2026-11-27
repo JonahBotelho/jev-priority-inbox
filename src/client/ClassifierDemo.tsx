@@ -12,7 +12,17 @@ import { mergeClassificationHistory, RecentClassifications } from './RecentClass
 type DisplayResult = PortalHistory & { receipt: DemoReceipt; totalMs: number };
 type DescribeError = (error: unknown) => string;
 
-export function ClassifierDemo({ userId, describeError }: { userId: string; describeError: DescribeError }) {
+interface ClassifierDemoProps {
+  userId: string;
+  describeError: DescribeError;
+  cachedSavedRows?: PortalHistory[];
+  onCacheHistory?: (rows: PortalHistory[]) => void;
+  onInvalidateHistoryCache?: () => void;
+}
+
+export function ClassifierDemo({
+  userId, describeError, cachedSavedRows, onCacheHistory, onInvalidateHistoryCache,
+}: ClassifierDemoProps) {
   const [receipts] = useState(() => new DemoReceipts(userId));
   const [history, setHistory] = useState(() => receipts.history);
   const [historyRevision, setHistoryRevision] = useState(0);
@@ -131,6 +141,7 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
       });
       if (receipt.inference.userId !== userId) { window.location.reload(); return; }
       const entry = demoHistoryEntry(receipt.inference);
+      onInvalidateHistoryCache?.();
       setResult({ ...entry, receipt, totalMs: Math.round(performance.now() - started) });
       setHistory(rows => mergeClassificationHistory(rows, [entry]));
     } catch (cause) {
@@ -157,7 +168,8 @@ export function ClassifierDemo({ userId, describeError }: { userId: string; desc
         </div>
       </section>
     </div>
-    <RecentClassifications localRows={history} describeError={describeError} revision={historyRevision}
+    <RecentClassifications localRows={history} initialSavedRows={cachedSavedRows} onSavedRowsChange={onCacheHistory}
+      onInvalidateCache={onInvalidateHistoryCache} describeError={describeError} revision={historyRevision}
       retry={refreshHistory} ensureSynced={ensureSynced} onUpdate={handleUpdate} onDelete={handleDelete}
       getHistorySeq={getHistorySeq} onHistoryLoaded={handleHistoryLoaded}
       onHistoryReadStateChange={handleHistoryReadStateChange} onMutated={refreshHistory} />

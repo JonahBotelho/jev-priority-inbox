@@ -124,9 +124,10 @@ test('the browser renders each Jev decision immediately and retries only its rec
   await page.setViewportSize({ width: 375, height: 800 });
   const mobileForm = (await form.boundingBox())!;
   expect((await decision.boundingBox())!.y).toBeGreaterThanOrEqual(mobileForm.y + mobileForm.height);
-  await expect(page.getByText(/Your API usage|Netlify team credits remaining/)).toHaveCount(0);
+  await expect(page.getByText(/Netlify team credits remaining/)).toHaveCount(0);
+  await expect(page.getByRole('region', { name: text.usageLabel })).toBeVisible();
   expect(requestedPaths.filter(path => path === '/v1/demo/inference')).toHaveLength(2);
-  expect(requestedPaths).not.toContain('/v1/usage/me');
+  expect(requestedPaths).toContain('/v1/usage/me');
   expect(requestedPaths).not.toContain('/v1/classify');
 });
 
@@ -370,4 +371,77 @@ test('admin dashboard renders registered users and a localized notice when endpo
   await expect(endpointRegion).toContainText(text.endpointStatsUnavailable);
   await expect(usersRegion.getByRole('cell', { name: 'admin@example.test', exact: true })).toBeVisible();
   expect(pageErrors).toEqual([]);
+});
+
+test('signed-in users see live API consumption and the 20-call warning while service continues', async ({ page }) => {
+  const api = 'http://127.0.0.1:3101/v1';
+  const registration = await page.request.post(api + '/auth/register', {
+    data: { email: 'quota-browser@example.test', password: 'quota-browser-password' },
+  });
+  expect(registration.status()).toBe(201);
+
+  // Reach 19 counted functional calls before opening the browser UI.
+  for (let i = 0; i < 19; i++) {
+    expect((await page.request.get(api + '/classifications')).status()).toBe(200);
+  }
+
+  await page.goto('/');
+  await expect(page.getByText(text.usageSummary(19, 20))).toBeVisible();
+  await expect(page.getByText(text.freeLimitWarning)).toHaveCount(0);
+
+  // Opening /app triggers GET /v1/classifications (20th call), exhausting free calls and showing the warning.
+  await page.getByRole('link', { name: inboxText.tryEmailDemo }).click();
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('region', { name: text.usageLabel })).toContainText(text.freeLimitWarning);
+
+  // Service continues uninterrupted past 20 free calls.
+  await page.getByLabel(text.subject).fill(en.fixtures.outage.subject);
+  await page.getByLabel(text.message).fill(en.fixtures.outage.text);
+  await page.getByRole('button', { name: text.classify, exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(en.tiers.Emergency);
+  await expect(page.getByRole('region', { name: text.usageLabel })).toContainText(text.freeLimitWarning);
+
+  // Returning to / also displays the exhausted warning for the signed-in user.
+  await page.getByRole('link', { name: text.liveInbox }).click();
+  await expect(page.getByText(text.freeLimitWarning)).toBeVisible();
+});
+
+test('switching between Admin dashboard and Classifier demo reuses cached history without extra API calls', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel(text.email).fill('admin@example.test');
+  await page.getByLabel(text.password).fill('browser-test-only');
+  await page.getByRole('button', { name: text.signIn }).click();
+  await expect(page).toHaveURL('/admin');
+
+  let historyReads = 0;
+  page.on('request', request => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/v1/classifications') historyReads += 1;
+  });
+
+  // First switch to /app loads history once.
+  await page.getByRole('link', { name: text.service }).click();
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('region', { name: text.history })).toBeVisible();
+  await expect.poll(() => historyReads).toBe(1);
+
+  // Switching back and forth between /admin and /app reuses the in-memory cache with 0 extra reads.
+  await page.getByRole('link', { name: text.adminDashboard }).click();
+  await expect(page).toHaveURL('/admin');
+  await expect(page.getByRole('region', { name: text.endpointStats })).toBeVisible();
+
+  await page.getByRole('link', { name: text.service }).click();
+  await expect(page).toHaveURL('/app');
+  await expect(page.getByRole('region', { name: text.history })).toBeVisible();
+  expect(historyReads).toBe(1);
+
+  // Browser Back and Forward also switch tabs cleanly without extra history reads.
+  await page.goBack();
+  await expect(page).toHaveURL('/admin');
+  await page.goForward();
+  await expect(page).toHaveURL('/app');
+  expect(historyReads).toBe(1);
+
+  // Clicking Refresh explicitly fetches fresh history.
+  await page.getByRole('region', { name: text.history }).getByRole('button', { name: text.refresh }).click();
+  await expect.poll(() => historyReads).toBe(2);
 });

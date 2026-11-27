@@ -84,7 +84,11 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.equal((await request('/classify', 'POST', message)).status, 401);
     assert.equal((await request('/classify', 'POST', {}, userCookie)).status, 400);
     const initialUsage = await (await request('/usage/me', 'GET', undefined, userCookie)).json();
-    assert.equal(initialUsage.requests, 0);
+    assert.equal(initialUsage.requests, 1);
+    assert.equal(initialUsage.freeLimit, 20);
+    assert.equal(initialUsage.remainingFreeCalls, 19);
+    assert.equal(initialUsage.limitExceeded, false);
+    assert.equal(initialUsage.warning, null);
     assert.equal(initialUsage.netlifyCreditBalance, null);
     const checkedAt = '2026-11-10T12:30:00.000Z';
     await database.pool.query('INSERT INTO netlify_credit_checks (remaining_credits,checked_at) VALUES ($1,$2)', ['17.6250', checkedAt]);
@@ -112,7 +116,8 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
       criteria: { Emergency: null, Urgent: null, Routine: null } } });
     const usage = await request('/usage/me', 'GET', undefined, userCookie);
     const summary = await usage.json() as PortalUsage;
-    assert.equal(summary.requests, 1); assert.equal(summary.successful, 1); assert.ok(summary.lastRequest);
+    assert.equal(summary.requests, 2); assert.equal(summary.successful, 1); assert.ok(summary.lastRequest);
+    assert.equal(summary.remainingFreeCalls, 18); assert.equal(summary.limitExceeded, false);
     assert.ok(summary.netlifyCreditBalance);
     assert.equal(summary.netlifyCreditBalance.remaining, '17.625');
     assert.equal(new Date(summary.netlifyCreditBalance.checkedAt).toISOString(), checkedAt);
@@ -125,7 +130,7 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.equal(failed.status, 502);
     assert.doesNotMatch(await failed.text(), /private provider diagnostic|test-netlify-to-gateway/);
     const afterFailure = await (await request('/usage/me', 'GET', undefined, userCookie)).json();
-    assert.deepEqual([afterFailure.requests, afterFailure.successful], [2, 1]);
+    assert.deepEqual([afterFailure.requests, afterFailure.successful], [4, 1]);
     assert.equal((await (await request('/classifications', 'GET', undefined, userCookie)).json()).results.length, 1);
 
     const duplicates = await Promise.all(['other@example.test', 'OTHER@example.test'].map(email =>
@@ -139,7 +144,7 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     await database.pool.query("INSERT INTO netlify_credit_checks VALUES ('2026-11-11T12:30:00Z', 0)");
     const latestUsage = await (await request('/usage/me', 'GET', undefined, userCookie)).json();
     assert.equal(latestUsage.netlifyCreditBalance.remaining, '0');
-    assert.equal(latestUsage.requests, 2);
+    assert.equal(latestUsage.requests, 5);
 
     const badLogin = await request('/auth/login', 'POST', { email: 'member@example.test', password: 'wrong-password-123' });
     assert.equal(badLogin.status, 401);
@@ -150,14 +155,14 @@ test('registration, login, JWT revocation, role authorization, Netlify classific
     assert.equal(dashboard.status, 200);
     const { users, endpoints } = await dashboard.json();
     assert.equal(users.length, 3);
-    assert.equal(users.find((user: {email: string}) => user.email === 'member@example.test').requests, 9);
-    assert.equal(users.find((user: {email: string}) => user.email === 'other@example.test').requests, 2);
+    assert.equal(users.find((user: {email: string}) => user.email === 'member@example.test').requests, 5);
+    assert.equal(users.find((user: {email: string}) => user.email === 'other@example.test').requests, 1);
     assert.equal(users.find((user: {email: string}) => user.email === 'root@example.test').requests, 0);
     assert.deepEqual(Object.keys(users[0]).sort(), ['id','email','role','createdAt','requests'].sort());
     assert.ok(Array.isArray(endpoints));
     assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'POST' && stat.endpoint === '/v1/classify')?.requests, 3);
     assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/priority')?.requests, 1);
-    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/usage/me')?.requests, 5);
+    assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/usage/me'), undefined);
     assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.method === 'GET' && stat.endpoint === '/v1/classifications')?.requests, 3);
     assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.endpoint === '/v1/auth/login'), undefined);
     assert.equal(endpoints.find((stat: { method: string; endpoint: string }) => stat.endpoint === '/v1/admin/dashboard'), undefined);

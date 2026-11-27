@@ -1,13 +1,21 @@
 // Portal accounts, revocable sessions and per-user classification receipts in the existing Neon database.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { demoHistoryEntry, type ClassificationUpdate, type DemoAttempt, type DemoInference, type EndpointStat, type PortalDashboard, type PortalHistory,
+import { buildUsageQuota, demoHistoryEntry, type ClassificationUpdate, type DemoAttempt, type DemoInference, type EndpointStat, type PortalDashboard, type PortalHistory,
   type PortalRole, type PortalUsage, type PortalUser } from '../../shared/portal.js';
+import { portalText } from '../../locales/portal.js';
 import type { Tier } from '../../shared/types.js';
 import type { PostgresInbox } from './PostgresInbox.js';
 
 export interface PortalSession { id: string; expiresAt: Date }
+export interface AuthenticatedSession { user: PortalUser; apiRequests: number }
 interface StoredUser extends PortalUser { password_hash: string }
+interface StoredUsageRow {
+  requests: number;
+  successful: number;
+  lastRequest: string | null;
+  netlifyCreditBalance: { remaining: string; checkedAt: string } | null;
+}
 
 export class PostgresPortal {
   private constructor(private readonly database: PostgresInbox) {}
@@ -51,10 +59,18 @@ export class PostgresPortal {
       INSERT INTO app_sessions (id,user_id,expires_at) VALUES ($1,$2,$3)`, [session.id, userId, session.expiresAt]);
   }
 
-  async sessionUser(sessionId: string, userId: string): Promise<PortalUser | undefined> {
-    const { rows } = await this.database.pool.query<PortalUser>(`SELECT u.id,u.email,u.role FROM app_sessions s
-      JOIN app_users u ON u.id=s.user_id WHERE s.id=$1 AND u.id=$2 AND s.expires_at > now()`, [sessionId, userId]);
-    return rows[0];
+  async sessionUser(sessionId: string, userId: string): Promise<AuthenticatedSession | undefined> {
+    const { rows } = await this.database.pool.query<PortalUser & { apiRequests: number }>(
+      `SELECT u.id,u.email,u.role,
+         COALESCE((SELECT SUM(requests)::int FROM api_user_endpoint_stats
+           WHERE user_id=u.id AND NOT (method='GET' AND endpoint='/v1/usage/me')), 0) AS "apiRequests"
+       FROM app_sessions s
+       JOIN app_users u ON u.id=s.user_id WHERE s.id=$1 AND u.id=$2 AND s.expires_at > now()`,
+      [sessionId, userId],
+    );
+    if (!rows[0]) return undefined;
+    const { apiRequests, ...user } = rows[0];
+    return { user, apiRequests };
   }
 
   async endSession(sessionId: string, userId: string): Promise<void> {
@@ -83,12 +99,30 @@ export class PostgresPortal {
   }
 
   async usage(userId: string): Promise<PortalUsage> {
-    const { rows } = await this.database.pool.query<PortalUsage>(`SELECT count(*)::int AS requests,
-      (count(*) FILTER (WHERE status BETWEEN 200 AND 299))::int AS successful, max(created_at) AS "lastRequest",
-      (SELECT json_build_object('remaining', trim_scale(remaining_credits)::text, 'checkedAt', checked_at)
-         FROM netlify_credit_checks ORDER BY checked_at DESC LIMIT 1) AS "netlifyCreditBalance"
-      FROM api_usage WHERE user_id=$1`, [userId]);
-    return rows[0];
+    const { rows } = await this.database.pool.query<StoredUsageRow>(
+      `SELECT
+         COALESCE((SELECT SUM(requests)::int FROM api_user_endpoint_stats
+           WHERE user_id=$1 AND NOT (method='GET' AND endpoint='/v1/usage/me')), 0) AS requests,
+         (count(*) FILTER (WHERE status BETWEEN 200 AND 299))::int AS successful,
+         GREATEST(
+           max(created_at),
+           (SELECT max(last_requested_at) FROM api_user_endpoint_stats
+             WHERE user_id=$1 AND NOT (method='GET' AND endpoint='/v1/usage/me'))
+         ) AS "lastRequest",
+         (SELECT json_build_object('remaining', trim_scale(remaining_credits)::text, 'checkedAt', checked_at)
+            FROM netlify_credit_checks ORDER BY checked_at DESC LIMIT 1) AS "netlifyCreditBalance"
+       FROM api_usage WHERE user_id=$1`,
+      [userId],
+    );
+    const row = rows[0];
+    const quota = buildUsageQuota(row.requests);
+    return {
+      ...quota,
+      warning: quota.limitExceeded ? portalText.freeLimitWarning : null,
+      successful: row.successful,
+      lastRequest: row.lastRequest,
+      netlifyCreditBalance: row.netlifyCreditBalance,
+    };
   }
 
   async history(userId: string): Promise<PortalHistory[]> {
@@ -135,16 +169,18 @@ export class PostgresPortal {
     });
   }
 
-  async recordEndpointHit(method: string, endpoint: string, userId?: string): Promise<void> {
+  async recordEndpointHit(method: string, endpoint: string, userId?: string): Promise<number | undefined> {
     const endpointSql = `INSERT INTO api_endpoint_stats (method, endpoint, requests, last_requested_at)
        VALUES ($1, $2, 1, now())
        ON CONFLICT (method, endpoint)
        DO UPDATE SET requests = api_endpoint_stats.requests + 1, last_requested_at = now()`;
     if (!userId) {
       await this.database.pool.query(endpointSql, [method, endpoint]);
-      return;
+      return undefined;
     }
-    await this.database.transaction(async client => {
+    return this.database.transaction(async client => {
+      // Serialize concurrent quota updates per user so committed totals never race across different routes.
+      await client.query('SELECT pg_advisory_xact_lock(734182005, hashtext($1))', [userId]);
       await client.query(endpointSql, [method, endpoint]);
       await client.query(
         `INSERT INTO api_user_endpoint_stats (user_id, method, endpoint, requests, last_requested_at)
@@ -153,16 +189,24 @@ export class PostgresPortal {
          DO UPDATE SET requests = api_user_endpoint_stats.requests + 1, last_requested_at = now()`,
         [userId, method, endpoint],
       );
+      const { rows: [total] } = await client.query<{ requests: number }>(
+        `SELECT COALESCE(SUM(requests), 0)::int AS requests FROM api_user_endpoint_stats
+         WHERE user_id=$1 AND NOT (method='GET' AND endpoint='/v1/usage/me')`,
+        [userId],
+      );
+      return total.requests;
     });
   }
 
   async dashboard(): Promise<PortalDashboard> {
     const [{ rows: users }, { rows: endpoints }] = await Promise.all([
       this.database.pool.query<PortalDashboard['users'][number]>(`SELECT u.id,u.email,u.role,u.created_at AS "createdAt",
-        COALESCE(SUM(s.requests), 0)::int AS requests FROM app_users u LEFT JOIN api_user_endpoint_stats s ON s.user_id=u.id
+        COALESCE(SUM(s.requests), 0)::int AS requests FROM app_users u
+        LEFT JOIN api_user_endpoint_stats s ON s.user_id=u.id AND NOT (s.method='GET' AND s.endpoint='/v1/usage/me')
         GROUP BY u.id ORDER BY u.created_at DESC,u.id`),
       this.database.pool.query<EndpointStat>(`SELECT method, endpoint, requests
         FROM api_endpoint_stats
+        WHERE NOT (method='GET' AND endpoint='/v1/usage/me')
         ORDER BY requests DESC, endpoint ASC, method ASC`),
     ]);
     return { users, endpoints };

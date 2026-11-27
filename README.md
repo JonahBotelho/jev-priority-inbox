@@ -12,7 +12,7 @@ Enter a subject and message on the left. The browser requests Jev through an aut
 
 A visible demo checks for new history every five minutes. These account reads keep the API available while the demo is on screen. Hidden tabs pause the timer. After a long absence, returning to the demo starts a history read and can wake the free Render API. [History refresh](src/client/DemoHistoryRefresh.ts) · [Visibility tests](tests/demo-history-refresh.test.ts)
 
-The API records the status, duration, decision and available token counts in Neon. Each valid attempt counts once. The browser retries unconfirmed receipts in the background and when you reconnect or reopen the demo. Receipts contain only result metadata.
+The API records each user's counted functional API requests in Neon (`api_user_endpoint_stats`) alongside classification receipts in `api_usage`. Every registered account includes 20 free API calls; once exhausted, the API signals the limit via `GET /v1/usage/me` and `X-API-*` headers while continuing service, and the client displays the user's call count and warning banner. The browser retries unconfirmed receipts in the background and when you reconnect or reopen the demo. Receipts contain only result metadata.
 
 Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` together on the API service to create the initial administrator. Use an unused address. Restarts preserve existing accounts and passwords. Public registrations always receive the user role. For another frontend host, set `CLIENT_ORIGIN` to its exact origin. An existing `APP_JWT_SECRET` of at least 32 bytes is supported. Otherwise the API creates a private random signing key in Neon so sessions survive redeploys. Keep credentials and signing keys out of submissions.
 

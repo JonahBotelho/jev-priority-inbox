@@ -122,9 +122,10 @@ test('PUT and DELETE /v1/classifications/:id enforce ownership, validate inputs,
   const afterReplay = await (await call('/classifications', 'GET', undefined, ownerCookie)).json() as { results: PortalHistory[] };
   assert.deepEqual(afterReplay.results, []);
 
-  // Usage audit record remains intact in /v1/usage/me.
+  // Usage audit record remains intact: 15 counted functional requests and 1 successful classification.
   const usage = await (await call('/usage/me', 'GET', undefined, ownerCookie)).json() as PortalUsage;
-  assert.deepEqual([usage.requests, usage.successful], [1, 1]);
+  assert.equal(usage.requests, 15);
+  assert.equal(usage.successful, 1);
 
   // Admin dashboard Table A & Table B record PUT and DELETE /v1/classifications/:id and exclude 401/403.
   const dashboard = await (await call('/admin/dashboard', 'GET', undefined, adminCookie)).json() as PortalDashboard;
